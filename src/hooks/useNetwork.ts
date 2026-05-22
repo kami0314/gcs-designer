@@ -1,0 +1,376 @@
+/**
+ * Meta2d 网络连接管理模块
+ * 支持 WebSocket、MQTT、HTTP 轮询三种通信方式
+ */
+
+import type { Meta2d } from '@meta2d/core'
+import { parseMessage, isValidMessage, handleMessages as handleMeta2dMessages } from '@/utils/messageHandler'
+
+// ==================== 类型定义 ====================
+
+interface HttpConfig {
+  http: string
+  httpTimeInterval?: number
+  httpMethod?: string
+  httpHeaders?: Record<string, string>
+}
+
+interface NetworkState {
+  websocket: WebSocket | null
+  mqtt: WebSocket | null
+  httpTimers: ReturnType<typeof setTimeout>[]
+  heartbeatTimer: ReturnType<typeof setInterval> | null
+  reconnectTimer: ReturnType<typeof setTimeout> | null
+  throttleTimer: ReturnType<typeof setTimeout> | null
+  pendingMessages: any[]
+  lastHeartbeatTime: number
+}
+
+// ==================== 消息节流处理 ====================
+
+let messageThrottleTimer: ReturnType<typeof setTimeout> | null = null
+let pendingMessages: any[] = []
+
+/**
+ * 节流处理消息，避免频繁渲染
+ * @param messages 消息数据
+ * @param meta2dInstance Meta2d 实例
+ */
+function throttledHandleMessages(messages: any, meta2dInstance: any) {
+  pendingMessages.push(messages)
+
+  if (messageThrottleTimer) return // 已有定时器在等待，跳过
+
+  messageThrottleTimer = setTimeout(() => {
+    const allMessages = pendingMessages.flat()
+    pendingMessages = []
+    messageThrottleTimer = null
+
+    if (allMessages.length > 0) {
+      handleMeta2dMessages(allMessages, meta2dInstance)
+    }
+  }, 100) // 100ms 节流
+}
+
+/**
+ * 清理消息节流定时器
+ */
+function cleanupThrottle() {
+  if (messageThrottleTimer) {
+    clearTimeout(messageThrottleTimer)
+    messageThrottleTimer = null
+    pendingMessages = []
+  }
+}
+
+// ==================== WebSocket 管理 ====================
+
+let wsInstance: WebSocket | null = null
+let wsHeartbeatTimer: ReturnType<typeof setInterval> | null = null
+let wsReconnectTimer: ReturnType<typeof setTimeout> | null = null
+let lastHeartbeatTime = 0
+
+const WS_HEARTBEAT_INTERVAL = 10000 // 心跳间隔 10s
+const WS_HEARTBEAT_TIMEOUT = 30000  // 心跳超时 30s
+const WS_RECONNECT_DELAY = 5000     // 重连延迟 5s
+
+/**
+ * 连接 WebSocket
+ * @param url WebSocket 地址
+ * @param meta2dInstance Meta2d 实例
+ */
+export function connectWebsocket(url: string, meta2dInstance: any) {
+  if (!url) {
+    console.warn('[WebSocket] URL not configured')
+    return
+  }
+
+  console.log('[WebSocket] Connecting:', url)
+  closeWebsocket()
+
+  try {
+    wsInstance = new WebSocket(url)
+
+    wsInstance.onopen = () => {
+      console.log('[WebSocket] Connected')
+      meta2dInstance.store.data.websocketConnected = true
+      lastHeartbeatTime = Date.now()
+      startHeartbeat(meta2dInstance, url)
+
+      if (wsReconnectTimer) {
+        clearTimeout(wsReconnectTimer)
+        wsReconnectTimer = null
+      }
+    }
+
+    wsInstance.onmessage = (event) => {
+      handleWsMessage(event.data, meta2dInstance)
+    }
+
+    wsInstance.onerror = (error) => {
+      console.error('[WebSocket] Error:', error)
+      meta2dInstance.store.data.websocketConnected = false
+      stopHeartbeat()
+      scheduleReconnect(meta2dInstance, url)
+    }
+
+    wsInstance.onclose = (event) => {
+      console.log('[WebSocket] Disconnected, code:', event.code)
+      meta2dInstance.store.data.websocketConnected = false
+      stopHeartbeat()
+
+      if (event.code !== 1000) {
+        scheduleReconnect(meta2dInstance, url)
+      }
+    }
+  } catch (error) {
+    console.error('[WebSocket] Connection error:', error)
+    scheduleReconnect(meta2dInstance, url)
+  }
+}
+
+/**
+ * 处理 WebSocket 消息
+ */
+function handleWsMessage(data: string, meta2dInstance: any) {
+  // 心跳响应
+  if (data === 'pong' || data === '{"type":"pong"}') {
+    lastHeartbeatTime = Date.now()
+    return
+  }
+
+  lastHeartbeatTime = Date.now()
+
+  try {
+    const message = parseMessage(data)
+    if (message && isValidMessage(message)) {
+      throttledHandleMessages(message, meta2dInstance)
+    }
+  } catch (error) {
+    console.error('[WebSocket] Message parse error:', error)
+  }
+}
+
+/**
+ * 启动心跳
+ */
+function startHeartbeat(meta2dInstance: any, url: string) {
+  stopHeartbeat()
+
+  wsHeartbeatTimer = setInterval(() => {
+    if (wsInstance && wsInstance.readyState === WebSocket.OPEN) {
+      if (Date.now() - lastHeartbeatTime > WS_HEARTBEAT_TIMEOUT) {
+        console.warn('[WebSocket] Heartbeat timeout, reconnecting...')
+        connectWebsocket(url, meta2dInstance)
+        return
+      }
+      wsInstance.send('ping')
+    }
+  }, WS_HEARTBEAT_INTERVAL)
+}
+
+/**
+ * 停止心跳
+ */
+function stopHeartbeat() {
+  if (wsHeartbeatTimer) {
+    clearInterval(wsHeartbeatTimer)
+    wsHeartbeatTimer = null
+  }
+}
+
+/**
+ * 计划重连
+ */
+function scheduleReconnect(meta2dInstance: any, url: string) {
+  if (wsReconnectTimer) return
+
+  wsReconnectTimer = setTimeout(() => {
+    console.log('[WebSocket] Reconnecting...')
+    connectWebsocket(url, meta2dInstance)
+  }, WS_RECONNECT_DELAY)
+}
+
+/**
+ * 关闭 WebSocket 连接
+ */
+export function closeWebsocket() {
+  stopHeartbeat()
+
+  if (wsReconnectTimer) {
+    clearTimeout(wsReconnectTimer)
+    wsReconnectTimer = null
+  }
+
+  if (wsInstance) {
+    wsInstance.close(1000, 'Client closed')
+    wsInstance = null
+  }
+}
+
+// ==================== MQTT 管理 ====================
+
+let mqttInstance: WebSocket | null = null
+
+/**
+ * 连接 MQTT（通过 WebSocket 模拟）
+ * @param url MQTT WebSocket 地址
+ * @param options MQTT 配置选项
+ * @param meta2dInstance Meta2d 实例
+ */
+export function connectMqtt(url: string, options: any, meta2dInstance: any) {
+  if (!url) {
+    console.warn('[MQTT] URL not configured')
+    return
+  }
+
+  console.log('[MQTT] Connecting:', url)
+  closeMqtt()
+
+  try {
+    mqttInstance = new WebSocket(url)
+
+    mqttInstance.onopen = () => {
+      console.log('[MQTT] Connected')
+      meta2dInstance.store.data.mqttConnected = true
+
+      const clientId = options.customClientId ? options.clientId : `client_${Date.now()}`
+      console.log('[MQTT] Client ID:', clientId)
+    }
+
+    mqttInstance.onmessage = (event) => {
+      try {
+        const message = parseMessage(event.data)
+        if (message && isValidMessage(message)) {
+          throttledHandleMessages(message, meta2dInstance)
+        }
+      } catch (error) {
+        console.error('[MQTT] Message parse error:', error)
+      }
+    }
+
+    mqttInstance.onerror = (error) => {
+      console.error('[MQTT] Error:', error)
+      meta2dInstance.store.data.mqttConnected = false
+    }
+
+    mqttInstance.onclose = () => {
+      console.log('[MQTT] Disconnected')
+      meta2dInstance.store.data.mqttConnected = false
+    }
+  } catch (error) {
+    console.error('[MQTT] Connection error:', error)
+  }
+}
+
+/**
+ * 关闭 MQTT 连接
+ */
+export function closeMqtt() {
+  if (mqttInstance) {
+    mqttInstance.close()
+    mqttInstance = null
+  }
+}
+
+// ==================== HTTP 轮询管理 ====================
+
+let httpTimers: ReturnType<typeof setTimeout>[] = []
+
+/**
+ * 连接 HTTP 轮询
+ * @param configs HTTP 配置数组
+ * @param meta2dInstance Meta2d 实例
+ */
+export function connectHttp(configs: HttpConfig[], meta2dInstance: any) {
+  if (!configs || configs.length === 0) {
+    console.warn('[HTTP] No endpoints configured')
+    return
+  }
+
+  console.log('[HTTP] Starting polling for', configs.length, 'endpoint(s)')
+  closeHttp()
+
+  configs.forEach((config, index) => {
+    if (!config.http) {
+      console.warn(`[HTTP] Endpoint ${index + 1} URL not configured`)
+      return
+    }
+
+    const interval = Math.max(config.httpTimeInterval || 1000, 500)
+    const method = (config.httpMethod || 'GET').toUpperCase()
+    const headers = config.httpHeaders || {}
+
+    console.log(`[HTTP] Polling ${config.http} every ${interval}ms`)
+    startPolling(config.http, interval, method, headers, meta2dInstance)
+  })
+}
+
+/**
+ * 开始轮询（使用递归 setTimeout 避免请求重叠）
+ */
+function startPolling(
+  url: string,
+  interval: number,
+  method: string,
+  headers: Record<string, string>,
+  meta2dInstance: any
+) {
+  let isRunning = false
+
+  async function poll() {
+    if (isRunning) return // 防止重叠请求
+
+    isRunning = true
+    try {
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          ...headers
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+
+      const data = await response.json()
+
+      if (data && isValidMessage(data)) {
+        throttledHandleMessages(data, meta2dInstance)
+      }
+    } catch (error) {
+      console.error(`[HTTP] Request error (${url}):`, error)
+    } finally {
+      isRunning = false
+      // 请求完成后，等待指定间隔再发起下一次
+      const timer = setTimeout(poll, interval)
+      httpTimers.push(timer)
+    }
+  }
+
+  // 立即发起第一次请求
+  poll()
+}
+
+/**
+ * 关闭 HTTP 轮询
+ */
+export function closeHttp() {
+  httpTimers.forEach(timer => clearTimeout(timer))
+  httpTimers = []
+  console.log('[HTTP] Polling stopped')
+}
+
+// ==================== 统一清理 ====================
+
+/**
+ * 清理所有网络资源
+ */
+export function cleanupNetwork() {
+  closeWebsocket()
+  closeMqtt()
+  closeHttp()
+  cleanupThrottle()
+}
