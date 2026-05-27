@@ -1,8 +1,11 @@
 export function mergeProps(target: any, resource: any) {
+    let cachedRect: any = null
     for (const i in target) {
         if (['width', 'height', 'x', 'y'].includes(i)) {
-            const rect = meta2d.getPenRect(resource)
-            target[i] = rect[i]
+            if (!cachedRect) {
+                cachedRect = meta2d.getPenRect(resource)
+            }
+            target[i] = cachedRect[i]
             continue
         }
         if (resource[i]) {

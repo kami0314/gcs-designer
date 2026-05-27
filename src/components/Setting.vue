@@ -57,23 +57,37 @@ const active = (args: unknown[]) => {
     }
   }
 }
+let autoLoadAppearance: ((args: unknown[]) => void) | null = null
+
 onMounted(() => {
   // 监听鼠标点击事件，返回
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   meta2d.on('active' as any, active as any)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   meta2d.on('inactive' as any, inactive as any)
-  
+
   // 首次激活后自动加载 Appearance
-  const autoLoadAppearance = (args: unknown[]) => {
+  autoLoadAppearance = (args: unknown[]) => {
     if (args.length >= 1 && !multiPen.value && isInitialLoad) {
       triggerAppearanceLoad()
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       meta2d.off('active' as any, autoLoadAppearance as any)
+      autoLoadAppearance = null
     }
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   meta2d.on('active' as any, autoLoadAppearance as any)
+})
+
+onUnmounted(() => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  meta2d.off('active' as any, active as any)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  meta2d.off('inactive' as any, inactive as any)
+  if (autoLoadAppearance) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    meta2d.off('active' as any, autoLoadAppearance as any)
+  }
 })
 
 // Tab 切换时触发懒加载
@@ -98,14 +112,6 @@ const triggerAppearanceLoad = () => {
     }, 100) // 延迟 100ms 让主线程空闲
   }
 }
-
-
-onUnmounted(() => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  meta2d.off("active" as any, active as any)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  meta2d.off("inactive" as any, inactive as any)
-})
 
 
 

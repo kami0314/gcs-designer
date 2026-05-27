@@ -102,37 +102,28 @@ const onQueryChanged = (query: string) => {
 }
 /** 勾选改变 */
 const onCheckChange = (data: any, checked: boolean) => {
-    console.log('[BindDialog] onCheckChange, data:', data?.name, 'checked:', checked)
     // 单选模式下由 onNodeClick 管理 checkNodes，不依赖复选框的 check-change 事件
     if (!props.showCheckbox) {
-        console.log('[BindDialog] single select mode, skip onCheckChange')
         return
     }
     let selectNodes = treeRef.value!.getCheckedNodes()
-    console.log('[BindDialog] getCheckedNodes:', selectNodes.map((n: any) => n.name))
     checkNodes.value = selectNodes.filter((it: any) => !it.children?.length)
-    console.log('[BindDialog] checkNodes after filter:', checkNodes.value.map((n: any) => n.name))
 }
 /** 确定 */
 const handleSubmit = () => {
-    console.log('[BindDialog] handleSubmit, checkNodes:', checkNodes.value)
     const result = checkNodes.value.map(item => ({ dataId: item.id, name: item.name }))
-    console.log('[BindDialog] emit update:', result)
     emit('update', deepClone(result))
     visible.value = false
 }
 /** 点击节点 */
 const onNodeClick = (data: any) => {
-    console.log('[BindDialog] onNodeClick, data:', data?.name, 'children?.length:', data?.children?.length, 'showCheckbox:', props.showCheckbox)
     if (!props.showCheckbox) {
         treeRef.value.setCheckedKeys([])
         if (data.children?.length) {
-            console.log('[BindDialog] clicked parent node, ignored')
             return false
         }
         treeRef.value.setChecked(data.id, true)
         checkNodes.value = [data]
-        console.log('[BindDialog] checkNodes set to:', checkNodes.value.map((n: any) => n.name))
     }
 }
 </script>

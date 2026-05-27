@@ -116,7 +116,7 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { menu, dispatchFunc } from '../config/defaultNav'
 import { LockState } from '@meta2d/core'
 import { useRouter } from 'vue-router'
@@ -202,13 +202,13 @@ function handlePreview() {
 }
 
 onMounted(() => {
-  setTimeout(() => {
+  nextTick(() => {
     // 添加安全检查，避免刷新时 meta2d.store.options 未初始化
     if (meta2d.store?.options) {
       min.value = (meta2d.store.options as any).minScale * 100
       max.value = (meta2d.store.options as any).maxScale * 100
     }
-    
+
     const data = meta2d.data()
     if (data) {
       scaleValue.value = +(data.scale * 100).toFixed()
@@ -216,14 +216,13 @@ onMounted(() => {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     meta2d.on('scale' as any, (data: any) => {
-      console.log(data)
       if (data !== undefined && data !== null) {
         scaleValue.value = +(data * 100).toFixed()
       }
     })
     openFn()
     meta2d.on("opened", openFn)
-  }, 500)
+  })
 
   // 监听 Electron 菜单事件
   if (window.electronAPI?.onMenuAction) {
@@ -238,7 +237,6 @@ onUnmounted(() => {
 
 /** 处理 Electron 菜单事件 */
 function handleMenuAction(action: string) {
-  console.log('[Nav] Menu action:', action)
   
   // 映射菜单操作到 dispatchFunc
   const actionMap: Record<string, string> = {

@@ -546,7 +546,7 @@ const map = computed(() => {
   flex-direction: column;
   gap: 8px;
   margin-bottom: 10px;
-  align-items: flex-start;
+  align-items: stretch;
   width: 100%;
 }
 .device-toolbar :deep(.el-upload),

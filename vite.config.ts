@@ -37,7 +37,7 @@ export default defineConfig({
       autoInstall: true,
     }),
 
-    Inspect(),
+    ...(process.env.NODE_ENV === 'development' ? [Inspect()] : []),
 
     (monacoEditorPlugin as any).default({
       languageWorkers: ['editorWorkerService', 'json', 'html', 'typescript']
@@ -64,5 +64,15 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-vue': ['vue', 'vue-router', 'pinia'],
+          'vendor-element': ['element-plus'],
+          'vendor-meta2d': ['@meta2d/core'],
+          'vendor-monaco': ['monaco-editor'],
+        }
+      }
+    }
   }
 })

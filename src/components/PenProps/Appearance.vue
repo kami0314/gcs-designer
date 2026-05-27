@@ -20,7 +20,7 @@ const iconChange = (val: any) => {
 // 记录是否有选中多个图元
 const multiPen = ref(false)
 const defaultConfig = deepClone(appearanceProps) //深拷贝保存默认配置
-let m = reactive(appearanceProps) // 响应式数据源
+let m = reactive(deepClone(appearanceProps)) // 响应式数据源（深拷贝避免模块单例被污染）
 let activePen = reactive({ target: {} as any })
 let otherProps = reactive({ props: [] as any[] })
 
@@ -103,29 +103,26 @@ onUnmounted(() => {
 onMounted(() => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   meta2d.on('active' as any, active as any)
-  // 更新数据  合并多个事件
-  meta2d.on('update', () => {
-    meta2d.emit('editPen')
-  })
-  meta2d.on('resizePens', () => {
-    meta2d.emit('editPen')
-  })
-  meta2d.on('rotatePens', () => {
-    meta2d.emit('editPen')
-  })
-  meta2d.on('valueUpdate', () => {
-    meta2d.emit('editPen')
-  })
-  meta2d.on('editPen', () => {
-    if (multiPen.value) {
-      // 若有多个图元，则设置以最后一个图元为主
-      for (let i of activePen.target) {
-        mergeProps(m, i)
+  // 更新数据  合并多个事件，用 rAF 防抖避免同帧重复执行
+  let editPenRaf = 0
+  const scheduleEditPen = () => {
+    if (editPenRaf) return
+    editPenRaf = requestAnimationFrame(() => {
+      editPenRaf = 0
+      if (multiPen.value) {
+        for (let i of activePen.target) {
+          mergeProps(m, i)
+        }
+      } else {
+        mergeProps(m, activePen.target)
       }
-    } else {
-      mergeProps(m, activePen.target)
-    }
-  })
+    })
+  }
+  meta2d.on('update', scheduleEditPen)
+  meta2d.on('resizePens', scheduleEditPen)
+  meta2d.on('rotatePens', scheduleEditPen)
+  meta2d.on('valueUpdate', scheduleEditPen)
+  meta2d.on('editPen', scheduleEditPen)
 })
 
 /** 自定义属性配置（外部传入的 props） */

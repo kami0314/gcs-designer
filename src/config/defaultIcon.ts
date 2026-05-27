@@ -1,4 +1,5 @@
-import { ReplaceMode } from '@meta2d/chart-diagram';
+// REPLACE_MODE = 1，避免引入整个 @meta2d/chart-diagram 包
+const REPLACE_MODE = 1;
 export const defaultIcons: any[] = [
     {
         name: '基本形状',
@@ -1343,7 +1344,7 @@ export const defaultIcons: any[] = [
                                 },
                             ],
                         },
-                        replaceMode: ReplaceMode.Replace,
+                        replaceMode: REPLACE_MODE,
                     },
                 },
             },
@@ -1394,7 +1395,7 @@ export const defaultIcons: any[] = [
                                 },
                             ],
                         },
-                        replaceMode: ReplaceMode.Replace,
+                        replaceMode: REPLACE_MODE,
                     },
                 },
             },

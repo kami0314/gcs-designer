@@ -7,7 +7,6 @@ import { emitter } from '@/utils'
 onMounted(() => {
   if (window.electronAPI?.onMenuAction) {
     window.electronAPI.onMenuAction((action: string) => {
-      console.log('[Menu] Action:', action)
       // 触发全局事件，让其他组件处理
       emitter.emit('menu:action', action)
     })

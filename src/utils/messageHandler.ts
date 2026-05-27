@@ -67,11 +67,6 @@ export function handleMessages(messages: MessageData | MessageData[], meta2dInst
   
   if (messageList.length === 0) return;
 
-  // 确保 bindDatas 映射是最新的（用户在编辑过程中可能添加了新的绑定）
-  if (typeof meta2dInstance.initBindDatas === 'function') {
-    meta2dInstance.initBindDatas();
-  }
-
   // 将消息按格式分类
   const penMessages: PenMessageData[] = [];
   const bindMessages: BindMessageData[] = [];
@@ -106,12 +101,12 @@ export function handleMessages(messages: MessageData | MessageData[], meta2dInst
 
   // ========== 处理 id 格式的消息（直接按 pen ID 更新属性）==========
   if (penMessages.length > 0) {
-    const pens = meta2dInstance.store.data.pens || [];
+    const pensMap = meta2dInstance.store.pens || {};
     const updatedPens = new Set<any>();
     let hasUpdates = false;
 
     penMessages.forEach((message) => {
-      const targetPen = pens.find((pen: any) => pen.id === message.id);
+      const targetPen = pensMap[message.id];
 
       if (targetPen) {
         // 更新元素的属性（除了id外的所有字段）

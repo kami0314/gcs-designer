@@ -107,27 +107,27 @@ function dragStart(e: DragEvent, item: any) {
 
 /** 搜索图标 */
 const searchChange = debounce((value: string) => {
-  searchList.value = []
   let list = [...defaultIcons, ...otherIcons, ...customIconList]
   if (!value) {
     searchList.value = list
     return false
   }
+  const results: any[] = []
   list.forEach((item) => {
     if (!item.show) return false
     let filter = item.list.filter((i: any) => <string>i.name.includes(value))
     if (filter.length) {
-      searchList.value.push({
+      results.push({
         ...item,
         list: filter
       })
     }
   })
+  searchList.value = results
 })
 
 /** 清空搜索 */
 function handleClear() {
-  console.log([...defaultIcons, ...otherIcons, ...customIconList])
   searchList.value = [...defaultIcons, ...otherIcons, ...customIconList]
 }
 /** 图元管理 */

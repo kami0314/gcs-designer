@@ -18,7 +18,7 @@ interface HttpConfig {
 interface NetworkState {
   websocket: WebSocket | null
   mqtt: WebSocket | null
-  httpTimers: ReturnType<typeof setTimeout>[]
+  httpTimers: Set<ReturnType<typeof setTimeout>>
   heartbeatTimer: ReturnType<typeof setInterval> | null
   reconnectTimer: ReturnType<typeof setTimeout> | null
   throttleTimer: ReturnType<typeof setTimeout> | null
@@ -85,14 +85,12 @@ export function connectWebsocket(url: string, meta2dInstance: any) {
     return
   }
 
-  console.log('[WebSocket] Connecting:', url)
   closeWebsocket()
 
   try {
     wsInstance = new WebSocket(url)
 
     wsInstance.onopen = () => {
-      console.log('[WebSocket] Connected')
       meta2dInstance.store.data.websocketConnected = true
       lastHeartbeatTime = Date.now()
       startHeartbeat(meta2dInstance, url)
@@ -115,7 +113,6 @@ export function connectWebsocket(url: string, meta2dInstance: any) {
     }
 
     wsInstance.onclose = (event) => {
-      console.log('[WebSocket] Disconnected, code:', event.code)
       meta2dInstance.store.data.websocketConnected = false
       stopHeartbeat()
 
@@ -186,7 +183,6 @@ function scheduleReconnect(meta2dInstance: any, url: string) {
   if (wsReconnectTimer) return
 
   wsReconnectTimer = setTimeout(() => {
-    console.log('[WebSocket] Reconnecting...')
     connectWebsocket(url, meta2dInstance)
   }, WS_RECONNECT_DELAY)
 }
@@ -224,18 +220,13 @@ export function connectMqtt(url: string, options: any, meta2dInstance: any) {
     return
   }
 
-  console.log('[MQTT] Connecting:', url)
   closeMqtt()
 
   try {
     mqttInstance = new WebSocket(url)
 
     mqttInstance.onopen = () => {
-      console.log('[MQTT] Connected')
       meta2dInstance.store.data.mqttConnected = true
-
-      const clientId = options.customClientId ? options.clientId : `client_${Date.now()}`
-      console.log('[MQTT] Client ID:', clientId)
     }
 
     mqttInstance.onmessage = (event) => {
@@ -255,7 +246,6 @@ export function connectMqtt(url: string, options: any, meta2dInstance: any) {
     }
 
     mqttInstance.onclose = () => {
-      console.log('[MQTT] Disconnected')
       meta2dInstance.store.data.mqttConnected = false
     }
   } catch (error) {
@@ -275,7 +265,7 @@ export function closeMqtt() {
 
 // ==================== HTTP 轮询管理 ====================
 
-let httpTimers: ReturnType<typeof setTimeout>[] = []
+let httpTimers = new Set<ReturnType<typeof setTimeout>>()
 
 /**
  * 连接 HTTP 轮询
@@ -288,7 +278,6 @@ export function connectHttp(configs: HttpConfig[], meta2dInstance: any) {
     return
   }
 
-  console.log('[HTTP] Starting polling for', configs.length, 'endpoint(s)')
   closeHttp()
 
   configs.forEach((config, index) => {
@@ -301,7 +290,6 @@ export function connectHttp(configs: HttpConfig[], meta2dInstance: any) {
     const method = (config.httpMethod || 'GET').toUpperCase()
     const headers = config.httpHeaders || {}
 
-    console.log(`[HTTP] Polling ${config.http} every ${interval}ms`)
     startPolling(config.http, interval, method, headers, meta2dInstance)
   })
 }
@@ -317,6 +305,7 @@ function startPolling(
   meta2dInstance: any
 ) {
   let isRunning = false
+  let timer: ReturnType<typeof setTimeout> | null = null
 
   async function poll() {
     if (isRunning) return // 防止重叠请求
@@ -345,8 +334,8 @@ function startPolling(
     } finally {
       isRunning = false
       // 请求完成后，等待指定间隔再发起下一次
-      const timer = setTimeout(poll, interval)
-      httpTimers.push(timer)
+      timer = setTimeout(poll, interval)
+      httpTimers.add(timer)
     }
   }
 
@@ -359,8 +348,7 @@ function startPolling(
  */
 export function closeHttp() {
   httpTimers.forEach(timer => clearTimeout(timer))
-  httpTimers = []
-  console.log('[HTTP] Polling stopped')
+  httpTimers.clear()
 }
 
 // ==================== 统一清理 ====================

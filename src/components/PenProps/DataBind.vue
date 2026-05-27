@@ -171,7 +171,7 @@
 </template>
 
 <script setup>
-import { reactive, ref, unref, onMounted } from 'vue';
+import { reactive, ref, unref, onMounted, onUnmounted } from 'vue';
 import { Plus } from '@element-plus/icons-vue'
 import { deepClone } from '@meta2d/core'
 import BindDataDialog from './BindDataDialog.vue'
@@ -264,6 +264,10 @@ function active(args) {
 
 onMounted(() => {
     meta2d.on('active', active)
+})
+
+onUnmounted(() => {
+    meta2d.off('active', active)
 })
 
 /** 删除tags */

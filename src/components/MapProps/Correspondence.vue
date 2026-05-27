@@ -325,7 +325,6 @@ const h = computed(() => {
                         !meta2d.store.data.https[i] && (meta2d.store.data.https[i] = {})
                         meta2d.store.data.https[i].httpTimeInterval = val
                         meta2d.closeHttp()
-                        console.log(meta2d.store.data.https[i].http)
                         if (meta2d.store.data.https[i].http) {
                             meta2d.connectHttp();
                         }

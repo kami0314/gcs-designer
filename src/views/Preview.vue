@@ -49,8 +49,6 @@ onUnmounted(() => {
 
 /** 处理 Electron 菜单事件 */
 function handleMenuAction(action: string) {
-    console.log('[Preview] Menu action:', action)
-    
     // 切换编辑/预览
     if (action === 'toggleView') {
         router.push('/edit')

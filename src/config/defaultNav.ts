@@ -552,6 +552,41 @@ const menuFunc: MenuFunc = {
     redo() {
         meta2d.redo()
     },
+    // 剪切
+    cut() {
+        meta2d.cut()
+    },
+    // 复制
+    copy() {
+        meta2d.copy()
+    },
+    // 粘贴
+    paste() {
+        meta2d.paste()
+    },
+    // 全选
+    selectAll() {
+        meta2d.store.data.pens.forEach((pen: any) => {
+            if (!pen.parentId) {
+                meta2d.active(pen)
+            }
+        })
+        meta2d.render()
+    },
+    // 放大
+    zoomIn() {
+        const scale = meta2d.store.data.scale
+        meta2d.scale(scale + 0.1)
+    },
+    // 缩小
+    zoomOut() {
+        const scale = meta2d.store.data.scale
+        meta2d.scale(scale - 0.1)
+    },
+    // 适应画布
+    zoomToFit() {
+        meta2d.fitView()
+    },
     // 终点
     end(item) {
         meta2d.store.data.toArrow = item.value

@@ -286,17 +286,11 @@ function initNetworkMethods() {
   }
 
   meta2dAny.testMessage = async function(testData: any) {
-    console.log('[Debug] Testing message:', testData)
     const { isValidMessage, handleMessages } = await import('@/utils/messageHandler')
     if (isValidMessage(testData)) {
       handleMessages(testData, meta2d)
-      console.log('[Debug] Message processed')
-    } else {
-      console.warn('[Debug] Invalid message format')
     }
   }
-
-  console.log('[Network] Methods initialized')
 }
 
 onMounted(async () => {
@@ -413,21 +407,16 @@ async function setMenusListAndStatus() {
   let hasGif = false
 
   if (active.length > 0) {
-    let filterActive: string[] = []
+    const filterActive = new Set<string>()
     active.forEach(it => {
-      filterActive.push(it.id || '', ...(it.children || []))
+      filterActive.add(it.id || '')
+      ;(it.children || []).forEach(c => filterActive.add(c))
     })
-    filterActive = [...new Set(filterActive)]
-    let filterPens = pens.filter(it => {
-      return filterActive.includes(it.id || '')
+    hasGif = pens.some((item: Pen) => {
+      if (!filterActive.has(item.id || '')) return false
+      const image = item.image || ''
+      return image.lastIndexOf('.') !== -1 && image.substring(image.lastIndexOf('.') + 1) === 'gif'
     })
-
-    let gifPen = filterPens.find((item: Pen) => {
-      let image = item.image || ""
-      let ext = image.split('.').pop()
-      return ext === 'gif'
-    })
-    if (gifPen) hasGif = true;
   }
 
 
@@ -451,14 +440,9 @@ async function setMenusListAndStatus() {
     if (historiesL > 0 && historyIndex == lastIndex) {
       disabled.push('重做')
     }
-    let filterContext = contextMenusConfig.filter((item) => !exclude.includes(item.title || ''))
-    filterContext.forEach((item) => {
-      item.disabled = false
-      if (disabled.includes(item.title || '')) {
-        item.disabled = true
-      }
-    })
-    contextMenus.value = filterContext
+    contextMenus.value = contextMenusConfig
+      .filter((item) => !exclude.includes(item.title || ''))
+      .map(item => ({ ...item, disabled: disabled.includes(item.title || '') }))
   }
   // 选中一个图元
   if (activeNum == 1) {
@@ -507,14 +491,9 @@ async function setMenusListAndStatus() {
       exclude.push('取消组合', '取消组合状态')
     }
 
-    let filterContext = contextMenusConfig.filter((item) => !exclude.includes(item.title || ''))
-    filterContext.forEach((item) => {
-      item.disabled = false
-      if (disabled.includes(item.title || '')) {
-        item.disabled = true
-      }
-    })
-    contextMenus.value = filterContext
+    contextMenus.value = contextMenusConfig
+      .filter((item) => !exclude.includes(item.title || ''))
+      .map(item => ({ ...item, disabled: disabled.includes(item.title || '') }))
   }
   // 选中多个图元
   if (activeNum > 1) {
@@ -531,14 +510,9 @@ async function setMenusListAndStatus() {
     if (historiesL > 0 && historyIndex == lastIndex) {
       disabled.push('重做')
     }
-    let filterContext = contextMenusConfig.filter((item) => !exclude.includes(item.title || ''))
-    filterContext.forEach((item) => {
-      item.disabled = false
-      if (disabled.includes(item.title || '')) {
-        item.disabled = true
-      }
-    })
-    contextMenus.value = filterContext
+    contextMenus.value = contextMenusConfig
+      .filter((item) => !exclude.includes(item.title || ''))
+      .map(item => ({ ...item, disabled: disabled.includes(item.title || '') }))
   }
 }
 

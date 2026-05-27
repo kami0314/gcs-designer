@@ -1,5 +1,5 @@
 <script setup>
-import { isRef, onMounted, reactive, ref, toRaw } from 'vue'
+import { isRef, onMounted, onUnmounted, reactive, ref, toRaw } from 'vue'
 import { eventType, propsType } from '@/config/defaultConfig'
 import { EventAction } from '@meta2d/core'
 import CodeEdit from '@/components/CodeEdit.vue'
@@ -404,22 +404,28 @@ const eventParams = {
 
 
 
+function onActive(pen) {
+  if (pen.length === 1) {
+    activePen = reactive(pen[0])
+    let events = pen[0].events || []
+    if (isRef(events)) events = toRaw(events._value) || [];
+    events = events.map(item => {
+      let filter = eventBehavior.filter(it => it.behavior === item.action)
+      item.depList = filter.length ? filter[0].depend : []
+      return item
+    })
+    eventList.value = events
+  } else {
+    activePen = undefined
+  }
+}
+
 onMounted(() => {
-  meta2d.on('active', (pen) => {
-    if (pen.length === 1) {
-      activePen = reactive(pen[0])
-      let events = pen[0].events || []
-      if (isRef(events)) events = toRaw(events._value) || [];
-      events = events.map(item => {
-        let filter = eventBehavior.filter(it => it.behavior === item.action)
-        item.depList = filter.length ? filter[0].depend : []
-        return item
-      })
-      eventList.value = events
-    } else {
-      activePen = undefined
-    }
-  })
+  meta2d.on('active', onActive)
+})
+
+onUnmounted(() => {
+  meta2d.off('active', onActive)
 })
 /** 删除事件 */
 function removeEvent(index) {

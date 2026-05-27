@@ -19,7 +19,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getUserDataPath: () => ipcRenderer.invoke('fs:getUserDataPath'),
 
   // 菜单事件监听
-  onMenuAction: (callback) => ipcRenderer.on('menu:action', (event, action) => callback(action)),
+  onMenuAction: (callback) => {
+    ipcRenderer.removeAllListeners('menu:action')
+    ipcRenderer.on('menu:action', (_event, action) => callback(action))
+  },
 
   // 环境判断
   isElectron: true,
