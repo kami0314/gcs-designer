@@ -31,6 +31,7 @@
 import { ref, reactive, onMounted, computed, onUnmounted, nextTick } from 'vue'
 import type { Meta2d, Pen } from '@meta2d/core'
 import { LockState } from '@meta2d/core'
+import { requestRender } from '@/utils/render'
 
 
 const active = ref<any[]>([])
@@ -91,7 +92,7 @@ function setValue(item: Pen, key: string = 'key', value: any) {
     }
     item[key] = value
     meta2d.setValue(pen)
-    meta2d.render()
+    requestRender(meta2d)
 }
 
 function handleLocked(item: Pen) {
@@ -119,7 +120,7 @@ function handleLocked(item: Pen) {
 function handleClick(item: Pen) {
     meta2d.inactive();
     meta2d.active([item]);
-    meta2d.render()
+    requestRender(meta2d)
 }
 
 </script>

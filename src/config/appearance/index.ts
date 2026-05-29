@@ -1,3 +1,4 @@
+import { requestRender } from '@/utils/render'
 import { positionConfig } from './positionConfig'
 import { styleConfig } from './styleConfig'
 import { textConfig } from './textConfig'
@@ -27,7 +28,7 @@ export function createAppearanceMap(m: any, activePen: any, multiPen: any, updat
         })
         meta2d.canvas.calcActiveRect()
         mergeProps(m, activePen.target)
-        meta2d.render()
+        requestRender(meta2d)
       }
     } else if (child.prop === 'width' || child.prop === 'height') {
       child.func = (value: any) => {
@@ -72,7 +73,7 @@ export function createAppearanceMap(m: any, activePen: any, multiPen: any, updat
               dash: value
             })
           }
-          meta2d.render()
+          requestRender(meta2d)
         } else {
           activePen.target.dash = value
           meta2d.setValue({
@@ -126,7 +127,7 @@ export function createAppearanceMap(m: any, activePen: any, multiPen: any, updat
               [child.prop]: value
             })
           }
-          meta2d.render()
+          requestRender(meta2d)
         } else {
           activePen.target[child.prop] = value
           meta2d.setValue({

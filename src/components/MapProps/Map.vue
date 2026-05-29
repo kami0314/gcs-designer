@@ -2,6 +2,7 @@
 import Form from '../Form.vue'
 import { computed, onMounted, reactive } from 'vue'
 import { mapProps } from '@/config/defaultConfig'
+import { requestRender } from '@/utils/render'
 
 interface MapConfig {
   fileName: string
@@ -74,7 +75,7 @@ const map = computed(() => {
             meta2d.setOptions({
               color: value
             })
-            meta2d.render()
+            requestRender(meta2d)
           }
         },
         {
@@ -85,7 +86,7 @@ const map = computed(() => {
           event: 'change',
           func(value) {
             meta2d.store.data.penBackground = value
-            meta2d.render()
+            requestRender(meta2d)
           }
         },
         {
@@ -96,7 +97,7 @@ const map = computed(() => {
           event: 'change',
           func(value) {
             meta2d.setBackgroundColor(value)
-            meta2d.render()
+            requestRender(meta2d)
           }
         },
         {
@@ -117,7 +118,7 @@ const map = computed(() => {
               const fileUrl = reader.result
               m.bkImage = fileUrl
               meta2d.setBackgroundImage(fileUrl)
-              meta2d.render()
+              requestRender(meta2d)
             }
           }
         },
@@ -133,7 +134,7 @@ const map = computed(() => {
           },
           func(value) {
             meta2d.setBackgroundImage(value)
-            meta2d.render()
+            requestRender(meta2d)
           }
         },
         {
@@ -146,7 +147,7 @@ const map = computed(() => {
             meta2d.setRule({
               rule: value
             })
-            meta2d.render()
+            requestRender(meta2d)
           }
         },
         {
@@ -159,7 +160,7 @@ const map = computed(() => {
             meta2d.setRule({
               ruleColor: value
             })
-            meta2d.render()
+            requestRender(meta2d)
           }
         },
         {
@@ -172,7 +173,7 @@ const map = computed(() => {
             meta2d.setGrid({
               grid: value
             })
-            meta2d.render()
+            requestRender(meta2d)
           }
         },
         {
@@ -183,7 +184,7 @@ const map = computed(() => {
           event: 'change',
           func(value) {
             meta2d.store.options.autoAlignGrid = value
-            meta2d.render()
+            requestRender(meta2d)
           }
         },
         {
@@ -196,7 +197,7 @@ const map = computed(() => {
             meta2d.setGrid({
               gridColor: value
             })
-            meta2d.render()
+            requestRender(meta2d)
           }
         },
         {
@@ -213,7 +214,7 @@ const map = computed(() => {
             meta2d.setGrid({
               gridSize: +value
             })
-            meta2d.render()
+            requestRender(meta2d)
           }
         },
         {
@@ -230,7 +231,7 @@ const map = computed(() => {
             meta2d.setGrid({
               gridRotate: +value
             })
-            meta2d.render()
+            requestRender(meta2d)
           }
         }
       ]

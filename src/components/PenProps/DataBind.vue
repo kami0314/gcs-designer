@@ -174,6 +174,7 @@
 import { reactive, ref, unref, onMounted, onUnmounted } from 'vue';
 import { Plus } from '@element-plus/icons-vue'
 import { deepClone } from '@meta2d/core'
+import { requestRender } from '@/utils/render'
 import BindDataDialog from './BindDataDialog.vue'
 /** 绑定数据 */
 const bindData = ref({ form: [] })
@@ -230,7 +231,7 @@ const dataVisible = ref(false)
 function done(data) {
     bindData.value[echartsKey.value] = JSON.parse(data)
     meta2d.setValue(deepClone(unref(bindData)))
-    meta2d.render()
+    requestRender(meta2d)
 }
 
 /** 显示代码 */
@@ -279,7 +280,7 @@ function handleCloseTag(index) {
         id: bindData.value.id,
         tags: deepClone(bindData.value.tags)
     })
-    meta2d.render()
+    requestRender(meta2d)
 }
 
 /** 添加tags */
@@ -295,7 +296,7 @@ function addTags() {
             id: bindData.value.id,
             tags: deepClone(bindData.value.tags)
         })
-        meta2d.render()
+        requestRender(meta2d)
     }
 }
 
@@ -387,7 +388,7 @@ function save() {
             id: bindData.value.id,
             form: deepClone(bindData.value.form)
         })
-        meta2d.render()
+        requestRender(meta2d)
         visibleAdd.value = false
     })
 }
@@ -404,7 +405,7 @@ function handleDeleteDataBind(item) {
         id: bindData.value.id,
         form: deepClone(newForm)
     })
-    meta2d.render()
+    requestRender(meta2d)
     // 刷新 bindDatas 映射，确保消息处理能识别最新的绑定关系
     meta2d.initBindDatas()
     active(meta2d.store.active)
@@ -416,7 +417,7 @@ function handleFormDelete(index) {
         id: bindData.value.id,
         form: deepClone(bindData.value.form)
     })
-    meta2d.render()
+    requestRender(meta2d)
 }
 /** 数据改变事件 */
 function handleFormChange() {
@@ -424,7 +425,7 @@ function handleFormChange() {
         id: bindData.value.id,
         form: deepClone(bindData.value.form)
     })
-    meta2d.render()
+    requestRender(meta2d)
 }
 
 /** 绑定变量 */
@@ -441,7 +442,7 @@ function handleUpdate(item) {
         id: bindData.value.id,
         form: deepClone(bindData.value.form)
     })
-    meta2d.render()
+    requestRender(meta2d)
     // 刷新 bindDatas 映射，确保消息处理能识别最新的绑定关系
     meta2d.initBindDatas()
 }

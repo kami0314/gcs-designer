@@ -2,6 +2,7 @@
 import { isRef, onMounted, onUnmounted, reactive, ref, toRaw } from 'vue'
 import { eventType, propsType } from '@/config/defaultConfig'
 import { EventAction } from '@meta2d/core'
+import { requestRender } from '@/utils/render'
 import CodeEdit from '@/components/CodeEdit.vue'
 
 import { ElMessage } from 'element-plus';
@@ -21,7 +22,7 @@ const addEvent = () => {
     id: activePen.id,
     events: toRaw(eventList.value),
   })
-  meta2d.render()
+  requestRender(meta2d)
 }
 
 
@@ -434,7 +435,7 @@ function removeEvent(index) {
     id: activePen.id,
     events: toRaw(eventList.value)
   })
-  meta2d.render()
+  requestRender(meta2d)
 }
 
 /** 事件改变 */
@@ -459,7 +460,7 @@ function handleEventChange(val, prop, index) {
     id: activePen.id,
     events: toRaw(eventList.value)
   })
-  meta2d.render()
+  requestRender(meta2d)
 }
 
 /** 添加属性 */
@@ -469,7 +470,7 @@ function addPropsEvent(index) {
     id: activePen.id,
     events: toRaw(eventList.value)
   })
-  meta2d.render()
+  requestRender(meta2d)
 }
 /** 删除属性 */
 function removePropsEvent(index, index2) {
@@ -482,7 +483,7 @@ function removePropsEvent(index, index2) {
     id: activePen.id,
     events: toRaw(eventList.value)
   })
-  meta2d.render()
+  requestRender(meta2d)
 }
 /** 获取属性列表 */
 function getSuggestions(queryStr, cb) {
@@ -534,7 +535,7 @@ const handleEventAction = (index) => {
     id: activePen.id,
     events: toRaw(eventList.value)
   })
-  meta2d.render()
+  requestRender(meta2d)
 }
 
 function updateFunc(param) {
@@ -552,7 +553,7 @@ function updateFunc(param) {
       id: activePen.id,
       events: toRaw(eventList.value)
     })
-    meta2d.render()
+    requestRender(meta2d)
   }
 }
 

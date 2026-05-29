@@ -1,4 +1,5 @@
 import { Meta2d, PenType, PrevNextType } from "@meta2d/core"
+import { requestRender } from '@/utils/render'
 import type { Rect, Pen, Point } from '@meta2d/core'
 import { parseSvg } from "@meta2d/svg";
 
@@ -571,7 +572,7 @@ const menuFunc: MenuFunc = {
                 meta2d.active(pen)
             }
         })
-        meta2d.render()
+        requestRender(meta2d)
     },
     // 放大
     zoomIn() {
@@ -597,7 +598,7 @@ const menuFunc: MenuFunc = {
                 }
             })
         }
-        meta2d.render()
+        requestRender(meta2d)
     },
     // 起点
     start(item) {
@@ -610,7 +611,7 @@ const menuFunc: MenuFunc = {
                 }
             })
         }
-        meta2d.render()
+        requestRender(meta2d)
     },
     // 连线
     line(item) {
@@ -619,7 +620,7 @@ const menuFunc: MenuFunc = {
         meta2d.store.active?.forEach((pen) => {  // 修改已激活图元的连线样式
             meta2d.updateLineType(pen, item.value);  // meta2d的修改函数
         });
-        meta2d.render()
+        requestRender(meta2d)
     },
     // 锚点
     manual(item) {
@@ -655,7 +656,7 @@ const menuFunc: MenuFunc = {
                 default:
                     activeAnchor.prevNextType = PrevNextType.Bilateral
             }
-            meta2d.render()
+            requestRender(meta2d)
         }
     }
 

@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -rn 'watch\\\\|watchEffect\\\\|\\\\$watch' src/components/PenProps/ src/components/Setting.vue)",
+      "Bash(awk -F: '{print $1 \":\" $2}')"
+    ]
+  }
+}

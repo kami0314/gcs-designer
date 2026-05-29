@@ -2,6 +2,7 @@
 import Form from '../Form.vue'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { globalConfigProps } from '@/config/defaultConfig'
+import { requestRender } from '@/utils/render'
 import { getData, saveDevicesData, parseDevicesJson, type DataTree } from '@/api/data'
 import { Upload, View, EditPen } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
@@ -29,7 +30,7 @@ function init() {
       [p]: m[p]
     })
   }
-  meta2d.render()
+  requestRender(meta2d)
 }
 
 /** 设置属性 */
@@ -38,7 +39,7 @@ function setOptionFunc(prop) {
     meta2d.setOptions({
       [prop]: value
     })
-    meta2d.render()
+    requestRender(meta2d)
   }
 }
 

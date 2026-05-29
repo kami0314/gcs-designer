@@ -6,6 +6,7 @@ import { mergeProps } from '@/config/utils'
 import { deepClone, getFromAnchor, getToAnchor } from '@meta2d/core'
 import IconDrawer from '@/components/icon/IconDrawer.vue'
 import { createAppearanceMap } from '@/config/appearance'
+import { requestRender } from '@/utils/render'
 
 let showIconDrawer = ref(false)
 /** pen图标改变 */
@@ -37,7 +38,7 @@ function updateFunc(prop: string) {
           { render: false }
         )
       }
-      meta2d.render()
+      requestRender(meta2d)
     } else {
       meta2d.setValue({
         id: activePen.target.id,

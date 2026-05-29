@@ -2,6 +2,7 @@
 import { onMounted, reactive, ref, onUnmounted, computed, toRaw } from 'vue'
 import { type Pen, PenType } from '@meta2d/core'
 import { animateProps } from '@/config/defaultConfig'
+import { requestRender } from '@/utils/render'
 import Form from '@/components/Form.vue'
 import AnimateDrawer from './AnimateDrawer.vue'
 import { ElButton } from 'element-plus'
@@ -21,7 +22,7 @@ const updateCode = (value: string) => {
     [mouseProp]: value || undefined,
     titleFn: undefined
   })
-  meta2d.render()
+  requestRender(meta2d)
 }
 
 /** 显示动画帧抽屉 */
@@ -80,7 +81,7 @@ function updateFunc(params: string) {
       id: activePen.id,
       [params]: val
     })
-    meta2d.render()
+    requestRender(meta2d)
   }
 }
 
