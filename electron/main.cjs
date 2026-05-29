@@ -2,6 +2,9 @@ const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron')
 const path = require('path')
 const fs = require('fs')
 
+// 抑制 Electron 安全警告（webSecurity: false 是本应用所需：加载本地 SVG + 跨域 API）
+process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = 'true'
+
 const isDev = !app.isPackaged
 
 let mainWindow = null

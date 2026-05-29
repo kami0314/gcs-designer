@@ -1,7 +1,6 @@
-import { Meta2d, PenType, PrevNextType } from "@meta2d/core"
+import { PenType, PrevNextType } from "@meta2d/core"
 import { requestRender } from '@/utils/render'
 import type { Rect, Pen, Point } from '@meta2d/core'
-import { parseSvg } from "@meta2d/svg";
 
 import { ElMessage } from "element-plus"
 import 'element-plus/theme-chalk/el-message.css'
@@ -384,6 +383,7 @@ const menuFunc: MenuFunc = {
     },
     // 加载素材文件
     async loadFile() {
+        const { parseSvg } = await import("@meta2d/svg")
         // Electron 环境：使用原生对话框
         if (window.electronAPI?.openFile) {
             try {

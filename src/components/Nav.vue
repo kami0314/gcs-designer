@@ -116,7 +116,7 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { menu, dispatchFunc } from '../config/defaultNav'
 import { LockState } from '@meta2d/core'
 import { useRouter } from 'vue-router'
@@ -201,28 +201,41 @@ function handlePreview() {
   })
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const onScale = (data: any) => {
+  if (data !== undefined && data !== null) {
+    scaleValue.value = +(data * 100).toFixed()
+  }
+}
+
+let retryTimer: ReturnType<typeof setTimeout> | null = null
+
+function initMeta2dListeners() {
+  const m = (window as any).meta2d
+  if (!m?.store) {
+    // meta2d 尚未初始化，延迟重试
+    retryTimer = setTimeout(initMeta2dListeners, 100)
+    return
+  }
+  retryTimer = null
+
+  if (m.store.options) {
+    min.value = (m.store.options as any).minScale * 100
+    max.value = (m.store.options as any).maxScale * 100
+  }
+
+  const data = m.data()
+  if (data) {
+    scaleValue.value = +(data.scale * 100).toFixed()
+  }
+
+  m.on('scale' as any, onScale)
+  openFn()
+  m.on("opened", openFn)
+}
+
 onMounted(() => {
-  nextTick(() => {
-    // 添加安全检查，避免刷新时 meta2d.store.options 未初始化
-    if (meta2d.store?.options) {
-      min.value = (meta2d.store.options as any).minScale * 100
-      max.value = (meta2d.store.options as any).maxScale * 100
-    }
-
-    const data = meta2d.data()
-    if (data) {
-      scaleValue.value = +(data.scale * 100).toFixed()
-    }
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    meta2d.on('scale' as any, (data: any) => {
-      if (data !== undefined && data !== null) {
-        scaleValue.value = +(data * 100).toFixed()
-      }
-    })
-    openFn()
-    meta2d.on("opened", openFn)
-  })
+  initMeta2dListeners()
 
   // 监听 Electron 菜单事件
   if (window.electronAPI?.onMenuAction) {
@@ -231,13 +244,47 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  // 清理事件监听
+  if (retryTimer) {
+    clearTimeout(retryTimer)
+    retryTimer = null
+  }
+  const m = (window as any).meta2d
+  if (m) {
+    m.off('scale' as any, onScale)
+    m.off("opened", openFn)
+  }
   emitter.off('menu:action', handleMenuAction as any)
 })
 
+/** 判断焦点是否在输入元素上 */
+function isInputFocused(): boolean {
+  const el = document.activeElement
+  if (!el) return false
+  const tag = el.tagName
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (el as HTMLElement).isContentEditable
+}
+
 /** 处理 Electron 菜单事件 */
-function handleMenuAction(action: string) {
-  
+async function handleMenuAction(action: string) {
+  // 焦点在输入框时，剪贴板/编辑操作走原生行为
+  if (isInputFocused()) {
+    switch (action) {
+      case 'cut':
+      case 'copy':
+      case 'selectAll':
+      case 'undo':
+      case 'redo':
+        document.execCommand(action)
+        return
+      case 'paste':
+        try {
+          const text = await navigator.clipboard.readText()
+          document.execCommand('insertText', false, text)
+        } catch { /* fallback: do nothing */ }
+        return
+    }
+  }
+
   // 映射菜单操作到 dispatchFunc
   const actionMap: Record<string, string> = {
     'newFile': 'newFile',
@@ -257,7 +304,7 @@ function handleMenuAction(action: string) {
     'zoomToFit': 'zoomToFit',
     'toggleView': 'toggleView'
   }
-  
+
   const mappedAction = actionMap[action]
   if (mappedAction) {
     // 特殊处理：切换视图
@@ -270,7 +317,7 @@ function handleMenuAction(action: string) {
       }
       return
     }
-    
+
     // 调用对应的菜单函数
     dispatchFunc(mappedAction, null)
   }

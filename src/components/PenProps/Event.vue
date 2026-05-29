@@ -565,7 +565,7 @@ function updateFunc(param) {
   <div class="event">
     <el-button @click="addEvent" type="primary" style="width: 100%">添加事件</el-button>
     <el-collapse accordion>
-      <el-collapse-item v-for="(event, index) in eventList">
+      <el-collapse-item v-for="(event, index) in eventList" :key="index">
         <template #title>
           <div class="title-box">
             <div class="title-left">
@@ -597,7 +597,7 @@ function updateFunc(param) {
           </el-form-item>
 
           <!-- 事件类型依赖表单-->
-          <el-form-item :label-width="dep.option?.labelWidth" :label="dep.name" v-for="dep in event.depList">
+          <el-form-item :label-width="dep.option?.labelWidth" :label="dep.name" v-for="(dep, i) in event.depList" :key="i">
             <template #label>
               <span>{{ dep.name }}</span>
               <el-tooltip :content="dep.option?.tip" v-if="dep.option?.tip" placement="top">
@@ -672,7 +672,7 @@ function updateFunc(param) {
 
           <!-- 事件行为-->
           <el-form-item :label-width="dep.option?.labelWidth" :label="dep.name"
-            v-for="dep in eventParams[event.where.type] || []">
+            v-for="(dep, i) in eventParams[event.where.type] || []" :key="i">
             <template #label>
               <span>{{ dep.name }}</span>
               <el-tooltip :content="dep.option?.tip" v-if="dep.option?.tip" placement="top">

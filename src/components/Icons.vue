@@ -94,9 +94,12 @@ ContomIcons.forEach((item) => {
   customIconList.push(obj)
 })
 
+// 缓存基础列表，避免搜索时重复创建
+const baseIconList = [...defaultIcons, ...otherIcons, ...customIconList]
+
 const activeNames = ref([])
 const search = ref('')
-let searchList = ref([...defaultIcons, ...otherIcons, ...customIconList])
+let searchList = ref(baseIconList)
 const chartDialogVisible = ref(false)
 
 /** 拖拽 */
@@ -107,13 +110,12 @@ function dragStart(e: DragEvent, item: any) {
 
 /** 搜索图标 */
 const searchChange = debounce((value: string) => {
-  let list = [...defaultIcons, ...otherIcons, ...customIconList]
   if (!value) {
-    searchList.value = list
+    searchList.value = baseIconList
     return false
   }
   const results: any[] = []
-  list.forEach((item) => {
+  baseIconList.forEach((item) => {
     if (!item.show) return false
     let filter = item.list.filter((i: any) => <string>i.name.includes(value))
     if (filter.length) {
@@ -128,7 +130,7 @@ const searchChange = debounce((value: string) => {
 
 /** 清空搜索 */
 function handleClear() {
-  searchList.value = [...defaultIcons, ...otherIcons, ...customIconList]
+  searchList.value = baseIconList
 }
 /** 图元管理 */
 function showChartDialog() {

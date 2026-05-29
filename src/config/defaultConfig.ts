@@ -18,7 +18,7 @@ export const mapProps = {
 export const communicateProp = {
     websocketUrl: "",
     websocketConnected: false,
-    mqttUrl: "ws://broker.emqx.io:8083/mqtt",
+    mqttUrl: "",
     mqttConnected: false,
     customClientId: false,
     clientId: "",
@@ -52,7 +52,7 @@ export const globalConfigProps = {
     textColor: "",
     fontFamily: "",
     fontSize: 14,
-    lineHeight: "",
+    lineHeight: 0,
     textAlign: "",
     textBaseline: "",
     rotateCursor: "",

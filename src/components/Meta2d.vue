@@ -296,7 +296,7 @@ function initNetworkMethods() {
 onMounted(async () => {
   // 1. 立即创建 Meta2d 实例
   meta2d = new Meta2d('meta2d', meta2dOptions)
-  
+
   // 2. 监听事件
   meta2d.on('contextmenu', contextmenu)
   meta2d.on('click', click)

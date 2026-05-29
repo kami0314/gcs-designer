@@ -202,6 +202,7 @@ function inactive() {
 
 :deep(.el-tabs__header) {
   margin: 0;
+  height: 36px;
 }
 
 :deep(.el-tabs__content::-webkit-scrollbar) {
@@ -228,9 +229,6 @@ function inactive() {
   width: 100%;
 }
 
-:deep(.el-tabs__header) {
-  height: 36px;
-}
 
 :deep(.el-tabs__item) {
   font-size: 14px;

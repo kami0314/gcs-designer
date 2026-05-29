@@ -34,6 +34,9 @@ import { Loading } from '@element-plus/icons-vue'
 import Header from '@/components/Header.vue'
 import Aside from '@/components/Aside.vue'
 
+// 编辑器页面才加载图标字体 SVG（443KB），不阻塞首屏
+import('@/assets/font/fontIconSvg.js')
+
 // 异步加载 Meta2d 和 Setting 组件，减少首屏加载时间
 const Meta2d = defineAsyncComponent(() => import('@/components/Meta2d.vue'))
 // @ts-expect-error Setting.vue 缺少 ts 声明

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import Form from '../Form.vue'
-import { computed, onMounted, reactive } from 'vue'
+import { computed, onMounted, onUnmounted, reactive } from 'vue'
 import { mapProps } from '@/config/defaultConfig'
 import { requestRender } from '@/utils/render'
 
@@ -27,16 +27,22 @@ function loadOptionsFromMeta2d(options: Record<string, any>, target: MapConfig) 
   }
 }
 
+const onOpened = () => {
+  const options = meta2d.data()
+  loadOptionsFromMeta2d(meta2d.getOptions(), m)
+  loadOptionsFromMeta2d(options, m)
+}
+
 onMounted(() => {
-  meta2d.on('opened', () => {
-    const options = meta2d.data()
-    loadOptionsFromMeta2d(meta2d.getOptions(), m)
-    loadOptionsFromMeta2d(options, m)
-  })
+  meta2d.on('opened', onOpened)
   // 初始化
   const options = meta2d.getOptions()
   loadOptionsFromMeta2d(options, m)
   meta2d.fileName = m.fileName
+})
+
+onUnmounted(() => {
+  meta2d.off('opened', onOpened)
 })
 
 const map = computed(() => {

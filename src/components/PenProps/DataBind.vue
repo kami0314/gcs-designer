@@ -12,7 +12,7 @@
                 </el-form-item>
             </el-collapse-item>
             <el-collapse-item title="数据">
-                <template v-for="(item, index) in bindData.form">
+                <template v-for="(item, index) in bindData.form" :key="index">
                     <el-form-item class="mb-10" :label="item.name">
                         <div class="form-item-box flex-between">
                             <!-- 文字 -->
@@ -146,7 +146,7 @@
         </el-form>
         <!-- 下拉框 -->
         <el-form label-width="80px" :model="selectForm" v-if="addData.type == 'select'">
-            <template v-for="item in selectForm.options">
+            <template v-for="(item, index) in selectForm.options" :key="index">
                 <el-form-item label="选项名">
                     <el-input type="text" v-model="item.label" placeholder="请输入选项名" />
                 </el-form-item>

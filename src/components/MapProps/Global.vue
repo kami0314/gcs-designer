@@ -6,6 +6,7 @@ import { requestRender } from '@/utils/render'
 import { getData, saveDevicesData, parseDevicesJson, type DataTree } from '@/api/data'
 import { Upload, View, EditPen } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import EditDialog from '@/components/EditDialog.vue'
 
 let m = reactive(globalConfigProps)
 
@@ -67,9 +68,10 @@ async function loadDeviceData() {
 }
 
 /** 保存编辑后的设备JSON */
-async function handleSaveJson() {
+async function handleSaveJson(text?: string) {
   try {
-    const data = parseDevicesJson(deviceJsonText.value)
+    const jsonText = text ?? deviceJsonText.value
+    const data = parseDevicesJson(jsonText)
     if (!data) {
       ElMessage.error('JSON格式不正确')
       return
@@ -78,6 +80,7 @@ async function handleSaveJson() {
     if (success) {
       ElMessage.success('设备数据保存成功')
       deviceData.value = data
+      deviceJsonText.value = jsonText
       showEditor.value = false
     } else {
       ElMessage.error('保存设备数据失败')
@@ -502,18 +505,7 @@ const map = computed(() => {
       </div>
 
       <!-- JSON 编辑器弹窗 -->
-      <el-dialog v-model="showEditor" title="在线编辑设备JSON" class="device-dialog" append-to-body>
-        <el-input
-          v-model="deviceJsonText"
-          type="textarea"
-          :rows="20"
-          placeholder="请输入设备JSON数据..."
-        />
-        <template #footer>
-          <el-button @click="showEditor = false">取消</el-button>
-          <el-button type="primary" @click="handleSaveJson">保存</el-button>
-        </template>
-      </el-dialog>
+      <EditDialog title="在线编辑设备JSON" v-model="deviceJsonText" v-model:visible="showEditor" @done="handleSaveJson" />
 
       <!-- 设备属性预览 -->
       <div v-if="showPreview" class="device-preview">

@@ -96,7 +96,7 @@ const getVisibleChildren = (groupTitle: string) => {
             <el-form @submit="(e: Event) => e.preventDefault()" :label-width="item.labelWidth || '150px'" 
                    v-show="true" :key="item.title">
                 <!-- 遍历预计算的可见子项，避免 v-show 带来的 DOM 冗余 -->
-                <template v-for="({ item: i, index: childIndex }) in getVisibleChildren(item.title)" :key="i.prop + childIndex">
+                <template v-for="({ item: i, index: childIndex }) in getVisibleChildren(item.title)" :key="(i.prop || i.type) + childIndex">
                         <!-- 通用 label + tooltip 模板 -->
                         <el-form-item :label-width="i.option?.labelWidth">
                             <template #label v-if="i.title">

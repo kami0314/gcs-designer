@@ -102,27 +102,21 @@ export function handleMessages(messages: MessageData | MessageData[], meta2dInst
   // ========== 处理 id 格式的消息（直接按 pen ID 更新属性）==========
   if (penMessages.length > 0) {
     const pensMap = meta2dInstance.store.pens || {};
-    const updatedPens = new Set<any>();
     let hasUpdates = false;
 
+    // 先批量更新所有属性，收集变更
     penMessages.forEach((message) => {
       const targetPen = pensMap[message.id];
 
       if (targetPen) {
-        // 更新元素的属性（除了id外的所有字段）
         Object.keys(message).forEach((key) => {
           if (key !== 'id') {
             const oldValue = targetPen[key];
             const newValue = message[key];
-            
-            // 只在值真正改变时更新
+
             if (oldValue !== newValue) {
               targetPen[key] = newValue;
-              updatedPens.add(targetPen);
               hasUpdates = true;
-
-              // 触发值更新事件，通知UI更新
-              meta2dInstance.emit('valueUpdate', { pen: targetPen, key, oldValue, newValue });
             }
           }
         });
@@ -131,8 +125,9 @@ export function handleMessages(messages: MessageData | MessageData[], meta2dInst
       }
     });
 
-    // 只有在有实际更新时才重新渲染
+    // 属性全部更新后再统一触发一次渲染和事件，避免逐条触发导致级联更新
     if (hasUpdates) {
+      meta2dInstance.emit('valueUpdate');
       requestAnimationFrame(() => {
         meta2dInstance.render();
       });

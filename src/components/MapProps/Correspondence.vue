@@ -8,8 +8,8 @@
 import Form from '@/components/Form.vue'
 import { communicateProp, httpProp } from '@/config/defaultConfig'
 import EditDialog from '@/components/EditDialog.vue'
-import { computed, onMounted, reactive, ref } from 'vue';
-import { ElMessage } from 'element-plus'
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
+import { ElMessage, ElTag } from 'element-plus'
 
 interface HttpConfig {
   method: string
@@ -30,6 +30,22 @@ const httpHeaderIndex = ref(0)
 const visible = ref(false)
 const m = reactive(communicateProp)
 const http = reactive<HttpConfig[]>(httpProp)
+const wsConnected = ref(false)
+const wsTagProps = reactive({
+    type: computed(() => wsConnected.value ? 'success' : 'danger'),
+    effect: 'dark',
+})
+const wsBtnProps = reactive({
+    labelWidth: '0px',
+    text: computed(() => wsConnected.value ? '断开WS' : '连接WS'),
+    type: computed(() => wsConnected.value ? 'danger' : 'primary'),
+    block: true
+})
+
+/** 同步 WebSocket 连接状态 */
+function syncWsStatus() {
+    wsConnected.value = !!meta2d.store?.data?.websocketConnected
+}
 
 /** 从 meta2d.store.data 同步通信配置到表单 */
 function syncCommunicateFromStore() {
@@ -39,6 +55,7 @@ function syncCommunicateFromStore() {
     if (data.websocket !== undefined) {
         m.websocketUrl = data.websocket;
     }
+    syncWsStatus();
 
     // MQTT
     if (data.mqtt !== undefined) {
@@ -70,11 +87,23 @@ function syncCommunicateFromStore() {
     }
 }
 
+let statusTimer: ReturnType<typeof setInterval> | null = null
+
 onMounted(() => {
     // 初始化时同步一次
     syncCommunicateFromStore();
     // 监听 opened 事件，在导入 JSON 后同步
     meta2d.on('opened', syncCommunicateFromStore);
+    // 轮询 WebSocket 连接状态
+    statusTimer = setInterval(syncWsStatus, 2000)
+})
+
+onUnmounted(() => {
+    meta2d.off('opened', syncCommunicateFromStore);
+    if (statusTimer) {
+        clearInterval(statusTimer)
+        statusTimer = null
+    }
 })
 
 /** 添加httpHeader回调 */
@@ -102,7 +131,7 @@ const map = computed(() => {
             labelWidth: 100,
             children: [
                 {
-                    title: "WebSocket URL地址",
+                    title: "Ws链接地址",
                     type: "input",
                     prop: "websocketUrl",
                     bindProp: m,
@@ -123,9 +152,46 @@ const map = computed(() => {
                         meta2d.store.data.websocket = val;
                         if(!val) {
                             meta2d.closeWebsocket()
+                            wsConnected.value = false
                             return false
                         }
                         meta2d.connectWebsocket();
+                    }
+                },
+                {
+                    title: "连接状态",
+                    type: "extend",
+                    prop: "",
+                    bindProp: m,
+                    event: "change",
+                    option: {
+                        extendList: [{
+                            component: ElTag,
+                            props: wsTagProps,
+                            text: computed(() => wsConnected.value ? '已连接' : '未连接'),
+                        }]
+                    },
+                },
+                {
+                    title: "",
+                    type: "button",
+                    prop: "",
+                    bindProp: m,
+                    event: "click",
+                    option: wsBtnProps,
+                    func() {
+                        if (wsConnected.value) {
+                            meta2d.closeWebsocket()
+                            wsConnected.value = false
+                        } else {
+                            let reg = /^ws:\/\/|wss:\/\//
+                            if (!m.websocketUrl || !reg.test(m.websocketUrl)) {
+                                ElMessage({ type: "error", message: "请输入正确的WebSocket地址" })
+                                return false
+                            }
+                            meta2d.store.data.websocket = m.websocketUrl
+                            meta2d.connectWebsocket()
+                        }
                     }
                 },
             ]

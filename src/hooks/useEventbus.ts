@@ -12,14 +12,28 @@ const customOn = (eventName: string, callback: () => void) => {
 }
 
 export const useEventbus = () => {
-    // 销毁的事件
+    const listeners: Array<{ event: string; callback: () => void }> = []
+
+    const on = (eventName: string, callback: () => void) => {
+        const handler = () => callback()
+        emitter.on(eventName, handler)
+        listeners.push({ event: eventName, callback: handler })
+    }
+
+    const emit = (eventName: string) => {
+        emitter.emit(eventName)
+    }
+
     onUnmounted(() => {
-        // 清空所有的事件，避免多组件互相清理
-        emitter.all.clear()
+        // 只清理当前组件注册的监听器
+        listeners.forEach(({ event, callback }) => {
+            emitter.off(event, callback)
+        })
+        listeners.length = 0
     })
 
     return {
-        customEmit,
-        customOn
+        customEmit: emit,
+        customOn: on
     }
 }

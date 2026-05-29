@@ -96,17 +96,24 @@ function active(args: any[]) {
   }
 }
 
+// 更新数据  合并多个事件，用 rAF 防抖避免同帧重复执行
+let editPenRaf = 0
+let scheduleEditPen: () => void
+
 onUnmounted(() => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   meta2d.off('active' as any, active as any)
+  if (scheduleEditPen) {
+    meta2d.off('update', scheduleEditPen)
+    meta2d.off('resizePens', scheduleEditPen)
+    meta2d.off('rotatePens', scheduleEditPen)
+    meta2d.off('valueUpdate', scheduleEditPen)
+    meta2d.off('editPen', scheduleEditPen)
+  }
 })
 
 onMounted(() => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   meta2d.on('active' as any, active as any)
-  // 更新数据  合并多个事件，用 rAF 防抖避免同帧重复执行
-  let editPenRaf = 0
-  const scheduleEditPen = () => {
+  scheduleEditPen = () => {
     if (editPenRaf) return
     editPenRaf = requestAnimationFrame(() => {
       editPenRaf = 0

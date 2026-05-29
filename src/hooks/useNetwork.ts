@@ -26,30 +26,44 @@ interface NetworkState {
   lastHeartbeatTime: number
 }
 
-// ==================== 消息节流处理 ====================
+// ==================== 消息节流去重处理 ====================
 
 let messageThrottleTimer: ReturnType<typeof setTimeout> | null = null
-let pendingMessages: any[] = []
+// pen 消息按 "id:key" 去重，bind 消息按 dataId 去重，只保留最新值
+const pendingPenMessages = new Map<string, any>()
+const pendingBindMessages = new Map<string, any>()
 
 /**
- * 节流处理消息，避免频繁渲染
- * @param messages 消息数据
- * @param meta2dInstance Meta2d 实例
+ * 节流处理消息，同 key 只保留最新值
  */
-function throttledHandleMessages(messages: any, meta2dInstance: any) {
-  pendingMessages.push(messages)
+function throttledHandleMessages(messages: any, _meta2dInstance: any) {
+  const list = Array.isArray(messages) ? messages : [messages]
+  for (const msg of list) {
+    if (msg.dataId !== undefined) {
+      pendingBindMessages.set(msg.dataId, msg)
+    } else if (msg.id) {
+      for (const key of Object.keys(msg)) {
+        if (key !== 'id') {
+          pendingPenMessages.set(`${msg.id}:${key}`, { id: msg.id, [key]: msg[key] })
+        }
+      }
+    }
+  }
 
-  if (messageThrottleTimer) return // 已有定时器在等待，跳过
+  if (messageThrottleTimer) return
 
   messageThrottleTimer = setTimeout(() => {
-    const allMessages = pendingMessages.flat()
-    pendingMessages = []
+    const penMsgs = Array.from(pendingPenMessages.values())
+    const bindMsgs = Array.from(pendingBindMessages.values())
+    pendingPenMessages.clear()
+    pendingBindMessages.clear()
     messageThrottleTimer = null
 
+    const allMessages = [...penMsgs, ...bindMsgs]
     if (allMessages.length > 0) {
-      handleMeta2dMessages(allMessages, meta2dInstance)
+      handleMeta2dMessages(allMessages, _meta2dInstance)
     }
-  }, 100) // 100ms 节流
+  }, 100)
 }
 
 /**
@@ -59,7 +73,8 @@ function cleanupThrottle() {
   if (messageThrottleTimer) {
     clearTimeout(messageThrottleTimer)
     messageThrottleTimer = null
-    pendingMessages = []
+    pendingPenMessages.clear()
+    pendingBindMessages.clear()
   }
 }
 
@@ -158,7 +173,9 @@ function startHeartbeat(meta2dInstance: any, url: string) {
     if (wsInstance && wsInstance.readyState === WebSocket.OPEN) {
       if (Date.now() - lastHeartbeatTime > WS_HEARTBEAT_TIMEOUT) {
         console.warn('[WebSocket] Heartbeat timeout, reconnecting...')
-        connectWebsocket(url, meta2dInstance)
+        stopHeartbeat()
+        closeWebsocket()
+        scheduleReconnect(meta2dInstance, url)
         return
       }
       wsInstance.send('ping')
@@ -207,6 +224,26 @@ export function closeWebsocket() {
 // ==================== MQTT 管理 ====================
 
 let mqttInstance: WebSocket | null = null
+let mqttReconnectTimer: ReturnType<typeof setTimeout> | null = null
+let mqttReconnectUrl = ''
+let mqttReconnectOptions: any = null
+let mqttReconnectMeta2d: any = null
+const MQTT_RECONNECT_DELAY = 5000
+
+/**
+ * 计划 MQTT 重连
+ */
+function scheduleMqttReconnect() {
+  if (mqttReconnectTimer) return
+  if (!mqttReconnectUrl) return
+
+  mqttReconnectTimer = setTimeout(() => {
+    mqttReconnectTimer = null
+    if (mqttReconnectUrl) {
+      connectMqtt(mqttReconnectUrl, mqttReconnectOptions, mqttReconnectMeta2d)
+    }
+  }, MQTT_RECONNECT_DELAY)
+}
 
 /**
  * 连接 MQTT（通过 WebSocket 模拟）
@@ -219,6 +256,11 @@ export function connectMqtt(url: string, options: any, meta2dInstance: any) {
     console.warn('[MQTT] URL not configured')
     return
   }
+
+  // 保存重连参数
+  mqttReconnectUrl = url
+  mqttReconnectOptions = options
+  mqttReconnectMeta2d = meta2dInstance
 
   closeMqtt()
 
@@ -247,9 +289,11 @@ export function connectMqtt(url: string, options: any, meta2dInstance: any) {
 
     mqttInstance.onclose = () => {
       meta2dInstance.store.data.mqttConnected = false
+      scheduleMqttReconnect()
     }
   } catch (error) {
     console.error('[MQTT] Connection error:', error)
+    scheduleMqttReconnect()
   }
 }
 
@@ -257,6 +301,12 @@ export function connectMqtt(url: string, options: any, meta2dInstance: any) {
  * 关闭 MQTT 连接
  */
 export function closeMqtt() {
+  if (mqttReconnectTimer) {
+    clearTimeout(mqttReconnectTimer)
+    mqttReconnectTimer = null
+  }
+  mqttReconnectUrl = ''
+
   if (mqttInstance) {
     mqttInstance.close()
     mqttInstance = null
@@ -333,7 +383,8 @@ function startPolling(
       console.error(`[HTTP] Request error (${url}):`, error)
     } finally {
       isRunning = false
-      // 请求完成后，等待指定间隔再发起下一次
+      // 移除旧 timer，避免 Set 无限增长
+      if (timer) httpTimers.delete(timer)
       timer = setTimeout(poll, interval)
       httpTimers.add(timer)
     }

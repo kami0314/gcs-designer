@@ -40,7 +40,7 @@ export default defineConfig({
     ...(process.env.NODE_ENV === 'development' ? [Inspect()] : []),
 
     (monacoEditorPlugin as any).default({
-      languageWorkers: ['editorWorkerService', 'json', 'html', 'typescript']
+      languageWorkers: ['editorWorkerService', 'json']
     })
   ],
   resolve: {

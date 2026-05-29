@@ -1,4 +1,3 @@
-import { parseSvg } from "@meta2d/svg";
 import type { Pen } from "@meta2d/core"
 
 export { emitter } from './emitter'
@@ -13,6 +12,7 @@ export interface CustomPen {
 }
 
 export async function svgToPens(image: string): Promise<CustomPen> {
+    const { parseSvg } = await import("@meta2d/svg")
     const name = getFileName(image);
     const resData = await fetch(image).then(res => res.text());
     const data = resData

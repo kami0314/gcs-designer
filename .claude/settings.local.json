@@ -2,7 +2,17 @@
   "permissions": {
     "allow": [
       "Bash(grep -rn 'watch\\\\|watchEffect\\\\|\\\\$watch' src/components/PenProps/ src/components/Setting.vue)",
-      "Bash(awk -F: '{print $1 \":\" $2}')"
+      "Bash(awk -F: '{print $1 \":\" $2}')",
+      "Bash(npx tsc *)",
+      "Bash(npx --yes asar list /Users/kami/Documents/web/top/meta2d/release/win-unpacked/resources/app.asar)",
+      "Bash(npx asar *)",
+      "Bash(xargs cat)",
+      "Bash(npm view *)",
+      "WebSearch",
+      "WebFetch(domain:www.npmjs.com)",
+      "WebFetch(domain:github.com)",
+      "Bash(npm diff *)",
+      "Bash(grep -v \"^[+-]\\\\s*$\")"
     ]
   }
 }
