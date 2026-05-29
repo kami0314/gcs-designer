@@ -12,7 +12,8 @@
       "WebFetch(domain:www.npmjs.com)",
       "WebFetch(domain:github.com)",
       "Bash(npm diff *)",
-      "Bash(grep -v \"^[+-]\\\\s*$\")"
+      "Bash(grep -v \"^[+-]\\\\s*$\")",
+      "WebFetch(domain:gitee.com)"
     ]
   }
 }
