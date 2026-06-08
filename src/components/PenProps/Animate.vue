@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref, onUnmounted, computed, toRaw } from 'vue'
+import { onMounted, reactive, ref, onUnmounted, computed, toRaw, nextTick } from 'vue'
 import { type Pen, PenType } from '@meta2d/core'
 import { animateProps } from '@/config/defaultConfig'
 import { requestRender } from '@/utils/render'
@@ -668,7 +668,8 @@ onMounted(() => {
   
   // 组件挂载时检查是否已经有选中的图元
   // 解决延迟加载（v-if）导致错过 active 事件的问题
-  setTimeout(() => {
+  // 使用 nextTick 确保 DOM 已更新后再检查
+  nextTick(() => {
     try {
       // 从 meta2d.store.active 获取当前选中的图元
       const activePens = meta2d.store?.active
@@ -678,7 +679,7 @@ onMounted(() => {
     } catch (e) {
       console.warn('Failed to get active pen on mount:', e)
     }
-  }, 100)
+  })
 })
 </script>
 

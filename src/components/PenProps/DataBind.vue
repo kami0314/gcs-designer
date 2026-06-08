@@ -39,7 +39,7 @@
 
                             <!-- 多行文本 -->
                             <el-input class="flex-left" v-if="item.type == 'textarea'" type="textarea"
-                                v-model="bindData[item.key]" :readonly="item.readonly" :type="item.type"
+                                v-model="bindData[item.key]" :readonly="item.readonly"
                                 :placeholder="item.placeholder" @change="handleFormChange" />
 
                             <!-- 下拉框 -->
@@ -243,7 +243,7 @@ function showCode(item) {
 
 /** 选中回调 */
 function active(args) {
-    bindData.value = []
+    bindData.value = { form: [] }
     if (args.length) {
         let data = args[0]
         data.tags = data.tags || []
@@ -411,13 +411,16 @@ function handleDeleteDataBind(item) {
     active(meta2d.store.active)
 }
 /** 删除form */
-function handleFormDelete(index) {
-    bindData.value.form.splice(index, 1)
-    meta2d.setValue({
-        id: bindData.value.id,
-        form: deepClone(bindData.value.form)
-    })
-    requestRender(meta2d)
+function handleFormDelete(item) {
+    const index = bindData.value.form.findIndex(it => it.key === item.key)
+    if (index !== -1) {
+        bindData.value.form.splice(index, 1)
+        meta2d.setValue({
+            id: bindData.value.id,
+            form: deepClone(bindData.value.form)
+        })
+        requestRender(meta2d)
+    }
 }
 /** 数据改变事件 */
 function handleFormChange() {

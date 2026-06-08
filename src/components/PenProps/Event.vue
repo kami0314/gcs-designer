@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { isRef, onMounted, onUnmounted, reactive, ref, toRaw } from 'vue'
 import { eventType, propsType } from '@/config/defaultConfig'
 import { EventAction } from '@meta2d/core'
@@ -405,19 +405,25 @@ const eventParams = {
 
 
 
-function onActive(pen) {
+function onActive(pen: unknown[]) {
+  if (!Array.isArray(pen)) {
+    activePen = reactive({})
+    eventList.value = []
+    return
+  }
   if (pen.length === 1) {
-    activePen = reactive(pen[0])
-    let events = pen[0].events || []
+    activePen = reactive(pen[0] as Record<string, unknown>)
+    let events = (pen[0] as any).events || []
     if (isRef(events)) events = toRaw(events._value) || [];
-    events = events.map(item => {
+    events = events.map((item: any) => {
       let filter = eventBehavior.filter(it => it.behavior === item.action)
       item.depList = filter.length ? filter[0].depend : []
       return item
     })
     eventList.value = events
   } else {
-    activePen = undefined
+    activePen = reactive({})
+    eventList.value = []
   }
 }
 
@@ -538,15 +544,17 @@ const handleEventAction = (index) => {
   requestRender(meta2d)
 }
 
-function updateFunc(param) {
+function updateFunc(param: string) {
   return () => {
     if (param === 'setProps') {
-      eventList.value.forEach(item => {
+      eventList.value.forEach((item: any) => {
         let setProps = item.setProps
         item.value = {}
-        setProps.forEach(it => {
-          item.value[it.key] = it.value
-        })
+        if (Array.isArray(setProps)) {
+          setProps.forEach((it: any) => {
+            item.value[it.key] = it.value
+          })
+        }
       })
     }
     meta2d.setValue({

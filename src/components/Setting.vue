@@ -43,17 +43,26 @@ const active = (args: unknown[]) => {
   // 当有图元被选中时，根据当前活跃的 Tab 立即触发懒加载
   // 避免切换 Tab 时组件未接收到 active 事件数据
   if (args.length >= 1) {
-    if (activeName2.value === 'appearance' || activeName3.value === 'appearance') {
+    // 获取当前活跃的Tab名称（单选模式用activeName2，多选模式用activeName3）
+    const currentTab = multiPen.value ? activeName3.value : activeName2.value
+    
+    if (currentTab === 'appearance' || activeName3.value === 'appearance') {
       isAppearanceLoaded.value = true
     }
-    if (activeName2.value === 'animate') {
+    if (currentTab === 'animate') {
       isAnimateLoaded.value = true
     }
-    if (activeName2.value === 'event') {
+    if (currentTab === 'event') {
       isEventLoaded.value = true
     }
-    if (activeName2.value === 'other') {
+    if (currentTab === 'other') {
       isDataBindLoaded.value = true
+    }
+    if (currentTab === 'layout') {
+      isLayoutLoaded.value = true
+    }
+    if (currentTab === 'construction') {
+      isConstructionLoaded.value = true
     }
   }
 }

@@ -315,7 +315,7 @@ export function closeMqtt() {
 
 // ==================== HTTP 轮询管理 ====================
 
-let httpTimers = new Set<ReturnType<typeof setTimeout>>()
+const httpTimers = new Set<ReturnType<typeof setTimeout>>()
 
 /**
  * 连接 HTTP 轮询
