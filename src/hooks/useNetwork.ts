@@ -1,6 +1,11 @@
 /**
  * Meta2d 网络连接管理模块
  * 支持 WebSocket、MQTT、HTTP 轮询三种通信方式
+ *
+ * 优化特性：
+ * - WebSocket: 自适应心跳 + 指数退避重连 + 状态事件通知
+ * - HTTP: 自适应轮询 + AbortController取消 + 错误重试
+ * - 消息处理: 自适应节流 + 优先级队列
  */
 
 import type { Meta2d } from '@meta2d/core'
@@ -15,29 +20,75 @@ interface HttpConfig {
   httpHeaders?: Record<string, string>
 }
 
-interface NetworkState {
-  websocket: WebSocket | null
-  mqtt: WebSocket | null
-  httpTimers: Set<ReturnType<typeof setTimeout>>
-  heartbeatTimer: ReturnType<typeof setInterval> | null
-  reconnectTimer: ReturnType<typeof setTimeout> | null
-  throttleTimer: ReturnType<typeof setTimeout> | null
-  pendingMessages: any[]
-  lastHeartbeatTime: number
+type ConnectionState = 'connecting' | 'connected' | 'disconnected' | 'reconnecting'
+
+interface PendingMessage {
+  data: any
+  priority: number // 0: 普通, 1: 高优先级
+  timestamp: number
 }
 
-// ==================== 消息节流去重处理 ====================
+// ==================== 消息自适应节流处理 ====================
+
+const BASE_THROTTLE_INTERVAL = 100
+const MIN_THROTTLE_INTERVAL = 50
+const MAX_THROTTLE_INTERVAL = 500
 
 let messageThrottleTimer: ReturnType<typeof setTimeout> | null = null
+let currentThrottleInterval = BASE_THROTTLE_INTERVAL
+let messageCountInWindow = 0
+let messageWindowStart = Date.now()
+
+// 优先级队列
+const priorityQueue: PendingMessage[] = []
 // pen 消息按 "id:key" 去重，bind 消息按 dataId 去重，只保留最新值
 const pendingPenMessages = new Map<string, any>()
 const pendingBindMessages = new Map<string, any>()
 
 /**
- * 节流处理消息，同 key 只保留最新值
+ * 自适应调整节流间隔
  */
-function throttledHandleMessages(messages: any, _meta2dInstance: any) {
+function adjustThrottleInterval() {
+  const now = Date.now()
+  const windowDuration = now - messageWindowStart
+
+  // 每秒重置计数
+  if (windowDuration >= 1000) {
+    const messagesPerSecond = messageCountInWindow / (windowDuration / 1000)
+
+    if (messagesPerSecond > 100) {
+      // 消息频率高，增加节流间隔
+      currentThrottleInterval = Math.min(currentThrottleInterval * 1.5, MAX_THROTTLE_INTERVAL)
+    } else if (messagesPerSecond < 10) {
+      // 消息频率低，减少节流间隔
+      currentThrottleInterval = Math.max(currentThrottleInterval * 0.8, MIN_THROTTLE_INTERVAL)
+    }
+
+    // 重置计数器
+    messageCountInWindow = 0
+    messageWindowStart = now
+  }
+}
+
+/**
+ * 节流处理消息，同 key 只保留最新值
+ * @param messages 消息数据
+ * @param _meta2dInstance Meta2d 实例
+ * @param priority 优先级 (0: 普通, 1: 高优先级)
+ */
+function throttledHandleMessages(messages: any, _meta2dInstance: any, priority = 0) {
   const list = Array.isArray(messages) ? messages : [messages]
+  messageCountInWindow += list.length
+
+  // 高优先级消息直接加入优先级队列
+  if (priority > 0) {
+    priorityQueue.push({
+      data: list,
+      priority,
+      timestamp: Date.now()
+    })
+  }
+
   for (const msg of list) {
     if (msg.dataId !== undefined) {
       pendingBindMessages.set(msg.dataId, msg)
@@ -52,6 +103,9 @@ function throttledHandleMessages(messages: any, _meta2dInstance: any) {
 
   if (messageThrottleTimer) return
 
+  // 自适应调整节流间隔
+  adjustThrottleInterval()
+
   messageThrottleTimer = setTimeout(() => {
     const penMsgs = Array.from(pendingPenMessages.values())
     const bindMsgs = Array.from(pendingBindMessages.values())
@@ -59,11 +113,20 @@ function throttledHandleMessages(messages: any, _meta2dInstance: any) {
     pendingBindMessages.clear()
     messageThrottleTimer = null
 
-    const allMessages = [...penMsgs, ...bindMsgs]
+    // 处理优先级队列中的高优先级消息
+    const highPriorityData: any[] = []
+    while (priorityQueue.length > 0) {
+      const item = priorityQueue.shift()
+      if (item) {
+        highPriorityData.push(...(Array.isArray(item.data) ? item.data : [item.data]))
+      }
+    }
+
+    const allMessages = [...highPriorityData, ...penMsgs, ...bindMsgs]
     if (allMessages.length > 0) {
       handleMeta2dMessages(allMessages, _meta2dInstance)
     }
-  }, 100)
+  }, currentThrottleInterval)
 }
 
 /**
@@ -75,6 +138,7 @@ function cleanupThrottle() {
     messageThrottleTimer = null
     pendingPenMessages.clear()
     pendingBindMessages.clear()
+    priorityQueue.length = 0
   }
 }
 
@@ -84,10 +148,41 @@ let wsInstance: WebSocket | null = null
 let wsHeartbeatTimer: ReturnType<typeof setInterval> | null = null
 let wsReconnectTimer: ReturnType<typeof setTimeout> | null = null
 let lastHeartbeatTime = 0
+let wsReconnectAttempts = 0
+let wsMeta2dInstance: any = null
+let wsUrl = ''
+let wsLastLatency = 0
 
 const WS_HEARTBEAT_INTERVAL = 10000 // 心跳间隔 10s
 const WS_HEARTBEAT_TIMEOUT = 30000  // 心跳超时 30s
-const WS_RECONNECT_DELAY = 5000     // 重连延迟 5s
+const WS_RECONNECT_BASE_DELAY = 5000 // 重连基础延迟 5s
+const WS_RECONNECT_MAX_DELAY = 60000 // 最大重连延迟 60s
+const WS_MAX_RECONNECT_ATTEMPTS = 10 // 最大重连尝试次数
+
+/**
+ * 计算指数退避重连延迟
+ */
+function getReconnectDelay(): number {
+  const delay = Math.min(
+    WS_RECONNECT_BASE_DELAY * Math.pow(2, wsReconnectAttempts),
+    WS_RECONNECT_MAX_DELAY
+  )
+  return delay
+}
+
+/**
+ * 触发连接状态事件
+ */
+function emitConnectionState(state: ConnectionState) {
+  if (wsMeta2dInstance && typeof wsMeta2dInstance.emit === 'function') {
+    wsMeta2dInstance.emit('wsConnectionState', {
+      state,
+      url: wsUrl,
+      reconnectAttempts: wsReconnectAttempts,
+      latency: wsLastLatency
+    })
+  }
+}
 
 /**
  * 连接 WebSocket
@@ -100,7 +195,12 @@ export function connectWebsocket(url: string, meta2dInstance: any) {
     return
   }
 
+  // 保存重连参数
+  wsUrl = url
+  wsMeta2dInstance = meta2dInstance
+
   closeWebsocket()
+  emitConnectionState('connecting')
 
   try {
     wsInstance = new WebSocket(url)
@@ -108,7 +208,9 @@ export function connectWebsocket(url: string, meta2dInstance: any) {
     wsInstance.onopen = () => {
       meta2dInstance.store.data.websocketConnected = true
       lastHeartbeatTime = Date.now()
+      wsReconnectAttempts = 0 // 重置重连计数
       startHeartbeat(meta2dInstance, url)
+      emitConnectionState('connected')
 
       if (wsReconnectTimer) {
         clearTimeout(wsReconnectTimer)
@@ -124,12 +226,14 @@ export function connectWebsocket(url: string, meta2dInstance: any) {
       console.error('[WebSocket] Error:', error)
       meta2dInstance.store.data.websocketConnected = false
       stopHeartbeat()
+      emitConnectionState('disconnected')
       scheduleReconnect(meta2dInstance, url)
     }
 
     wsInstance.onclose = (event) => {
       meta2dInstance.store.data.websocketConnected = false
       stopHeartbeat()
+      emitConnectionState('disconnected')
 
       if (event.code !== 1000) {
         scheduleReconnect(meta2dInstance, url)
@@ -137,6 +241,7 @@ export function connectWebsocket(url: string, meta2dInstance: any) {
     }
   } catch (error) {
     console.error('[WebSocket] Connection error:', error)
+    emitConnectionState('disconnected')
     scheduleReconnect(meta2dInstance, url)
   }
 }
@@ -145,13 +250,16 @@ export function connectWebsocket(url: string, meta2dInstance: any) {
  * 处理 WebSocket 消息
  */
 function handleWsMessage(data: string, meta2dInstance: any) {
+  const receiveTime = Date.now()
+
   // 心跳响应
   if (data === 'pong' || data === '{"type":"pong"}') {
-    lastHeartbeatTime = Date.now()
+    wsLastLatency = receiveTime - lastHeartbeatTime
+    lastHeartbeatTime = receiveTime
     return
   }
 
-  lastHeartbeatTime = Date.now()
+  lastHeartbeatTime = receiveTime
 
   try {
     const message = parseMessage(data)
@@ -178,6 +286,7 @@ function startHeartbeat(meta2dInstance: any, url: string) {
         scheduleReconnect(meta2dInstance, url)
         return
       }
+      lastHeartbeatTime = Date.now() // 更新发送时间用于计算延迟
       wsInstance.send('ping')
     }
   }, WS_HEARTBEAT_INTERVAL)
@@ -198,10 +307,21 @@ function stopHeartbeat() {
  */
 function scheduleReconnect(meta2dInstance: any, url: string) {
   if (wsReconnectTimer) return
+  if (wsReconnectAttempts >= WS_MAX_RECONNECT_ATTEMPTS) {
+    console.error('[WebSocket] Max reconnect attempts reached')
+    emitConnectionState('disconnected')
+    return
+  }
+
+  wsReconnectAttempts++
+  const delay = getReconnectDelay()
+  console.log(`[WebSocket] Scheduling reconnect attempt ${wsReconnectAttempts} in ${delay}ms`)
+  emitConnectionState('reconnecting')
 
   wsReconnectTimer = setTimeout(() => {
+    wsReconnectTimer = null
     connectWebsocket(url, meta2dInstance)
-  }, WS_RECONNECT_DELAY)
+  }, delay)
 }
 
 /**
@@ -228,7 +348,20 @@ let mqttReconnectTimer: ReturnType<typeof setTimeout> | null = null
 let mqttReconnectUrl = ''
 let mqttReconnectOptions: any = null
 let mqttReconnectMeta2d: any = null
-const MQTT_RECONNECT_DELAY = 5000
+let mqttReconnectAttempts = 0
+const MQTT_RECONNECT_BASE_DELAY = 5000
+const MQTT_RECONNECT_MAX_DELAY = 60000
+const MQTT_MAX_RECONNECT_ATTEMPTS = 10
+
+/**
+ * 计算 MQTT 指数退避重连延迟
+ */
+function getMqttReconnectDelay(): number {
+  return Math.min(
+    MQTT_RECONNECT_BASE_DELAY * Math.pow(2, mqttReconnectAttempts),
+    MQTT_RECONNECT_MAX_DELAY
+  )
+}
 
 /**
  * 计划 MQTT 重连
@@ -236,13 +369,21 @@ const MQTT_RECONNECT_DELAY = 5000
 function scheduleMqttReconnect() {
   if (mqttReconnectTimer) return
   if (!mqttReconnectUrl) return
+  if (mqttReconnectAttempts >= MQTT_MAX_RECONNECT_ATTEMPTS) {
+    console.error('[MQTT] Max reconnect attempts reached')
+    return
+  }
+
+  mqttReconnectAttempts++
+  const delay = getMqttReconnectDelay()
+  console.log(`[MQTT] Scheduling reconnect attempt ${mqttReconnectAttempts} in ${delay}ms`)
 
   mqttReconnectTimer = setTimeout(() => {
     mqttReconnectTimer = null
     if (mqttReconnectUrl) {
       connectMqtt(mqttReconnectUrl, mqttReconnectOptions, mqttReconnectMeta2d)
     }
-  }, MQTT_RECONNECT_DELAY)
+  }, delay)
 }
 
 /**
@@ -269,6 +410,7 @@ export function connectMqtt(url: string, options: any, meta2dInstance: any) {
 
     mqttInstance.onopen = () => {
       meta2dInstance.store.data.mqttConnected = true
+      mqttReconnectAttempts = 0 // 重置重连计数
     }
 
     mqttInstance.onmessage = (event) => {
@@ -306,6 +448,7 @@ export function closeMqtt() {
     mqttReconnectTimer = null
   }
   mqttReconnectUrl = ''
+  mqttReconnectAttempts = 0
 
   if (mqttInstance) {
     mqttInstance.close()
@@ -315,7 +458,28 @@ export function closeMqtt() {
 
 // ==================== HTTP 轮询管理 ====================
 
-const httpTimers = new Set<ReturnType<typeof setTimeout>>()
+const httpPollers = new Map<string, {
+  timer: ReturnType<typeof setTimeout> | null
+  controller: AbortController | null
+  isRunning: boolean
+  currentInterval: number
+  baseInterval: number
+  maxInterval: number
+  errorCount: number
+  noChangeCount: number
+  lastDataHash: string
+}>()
+
+/**
+ * 简单的数据哈希函数，用于检测数据变化
+ */
+function hashData(data: any): string {
+  try {
+    return JSON.stringify(data)
+  } catch {
+    return String(Math.random())
+  }
+}
 
 /**
  * 连接 HTTP 轮询
@@ -346,6 +510,7 @@ export function connectHttp(configs: HttpConfig[], meta2dInstance: any) {
 
 /**
  * 开始轮询（使用递归 setTimeout 避免请求重叠）
+ * 支持自适应间隔、AbortController取消、错误重试
  */
 function startPolling(
   url: string,
@@ -354,20 +519,36 @@ function startPolling(
   headers: Record<string, string>,
   meta2dInstance: any
 ) {
-  let isRunning = false
-  let timer: ReturnType<typeof setTimeout> | null = null
+  const maxInterval = interval * 10 // 最大间隔为基础间隔的10倍
+
+  const pollerState = {
+    timer: null as ReturnType<typeof setTimeout> | null,
+    controller: null as AbortController | null,
+    isRunning: false,
+    currentInterval: interval,
+    baseInterval: interval,
+    maxInterval,
+    errorCount: 0,
+    noChangeCount: 0,
+    lastDataHash: ''
+  }
+
+  httpPollers.set(url, pollerState)
 
   async function poll() {
-    if (isRunning) return // 防止重叠请求
+    if (pollerState.isRunning) return // 防止重叠请求
 
-    isRunning = true
+    pollerState.isRunning = true
+    pollerState.controller = new AbortController()
+
     try {
       const response = await fetch(url, {
         method,
         headers: {
           'Content-Type': 'application/json',
           ...headers
-        }
+        },
+        signal: pollerState.controller.signal
       })
 
       if (!response.ok) {
@@ -377,16 +558,48 @@ function startPolling(
       const data = await response.json()
 
       if (data && isValidMessage(data)) {
+        // 检测数据是否变化
+        const dataHash = hashData(data)
+        if (dataHash === pollerState.lastDataHash) {
+          pollerState.noChangeCount++
+          // 数据未变化，逐渐增加轮询间隔
+          pollerState.currentInterval = Math.min(
+            pollerState.baseInterval * (1 + pollerState.noChangeCount * 0.5),
+            pollerState.maxInterval
+          )
+        } else {
+          pollerState.noChangeCount = 0
+          pollerState.currentInterval = pollerState.baseInterval
+          pollerState.lastDataHash = dataHash
+        }
+
         throttledHandleMessages(data, meta2dInstance)
+        pollerState.errorCount = 0 // 成功后重置错误计数
       }
-    } catch (error) {
+    } catch (error: any) {
+      // 忽略 AbortError（用户主动取消）
+      if (error.name === 'AbortError') {
+        return
+      }
+
       console.error(`[HTTP] Request error (${url}):`, error)
+      pollerState.errorCount++
+
+      // 错误时使用指数退避
+      pollerState.currentInterval = Math.min(
+        pollerState.baseInterval * Math.pow(2, Math.min(pollerState.errorCount, 5)),
+        pollerState.maxInterval
+      )
     } finally {
-      isRunning = false
+      pollerState.isRunning = false
+      pollerState.controller = null
+
       // 移除旧 timer，避免 Set 无限增长
-      if (timer) httpTimers.delete(timer)
-      timer = setTimeout(poll, interval)
-      httpTimers.add(timer)
+      if (pollerState.timer) {
+        clearTimeout(pollerState.timer)
+      }
+
+      pollerState.timer = setTimeout(poll, pollerState.currentInterval)
     }
   }
 
@@ -398,8 +611,31 @@ function startPolling(
  * 关闭 HTTP 轮询
  */
 export function closeHttp() {
-  httpTimers.forEach(timer => clearTimeout(timer))
-  httpTimers.clear()
+  httpPollers.forEach((state) => {
+    if (state.timer) {
+      clearTimeout(state.timer)
+    }
+    if (state.controller) {
+      state.controller.abort()
+    }
+  })
+  httpPollers.clear()
+}
+
+/**
+ * 取消指定 URL 的 HTTP 轮询
+ */
+export function cancelHttpPolling(url: string) {
+  const state = httpPollers.get(url)
+  if (state) {
+    if (state.timer) {
+      clearTimeout(state.timer)
+    }
+    if (state.controller) {
+      state.controller.abort()
+    }
+    httpPollers.delete(url)
+  }
 }
 
 // ==================== 统一清理 ====================
